@@ -1,0 +1,112 @@
+/* The reciter's own Gemini key: the sheet, and the first-run button in the hints. */
+.key-start {
+  margin-block-start: 8px;
+  min-height: 48px;
+  padding-inline: 24px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ink) 55%, transparent);
+  background: var(--ink-soft);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.key-sheet {
+  gap: 14px;
+  max-width: 44ch;
+}
+
+.key-intro {
+  color: var(--parchment);
+  font-size: 1.05rem;
+}
+
+.key-guide,
+.key-remove {
+  align-self: flex-start;
+  margin-top: 0;
+  padding-inline: 0;
+}
+
+.key-remove {
+  color: var(--parchment-dim);
+}
+
+.key-saved {
+  color: var(--parchment-dim);
+}
+
+.key-saved bdi {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--parchment);
+}
+
+.key-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.key-form label {
+  color: var(--parchment-dim);
+  font-size: 0.95rem;
+}
+
+.key-field {
+  display: flex;
+  gap: 8px;
+}
+
+.key-field input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding-inline: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--rule);
+  background: var(--night-2);
+  color: var(--parchment);
+  font: 0.95rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: start;
+}
+
+.key-field input:focus {
+  border-color: var(--ink);
+}
+
+.key-paste {
+  min-height: 48px;
+  padding-inline: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--rule);
+  color: var(--parchment-dim);
+}
+
+.key-save {
+  min-height: 48px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--night);
+  font-weight: 700;
+}
+
+.key-save:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.key-error {
+  color: #f2b8a8;
+}
+
+.key-caveat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-block-start: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--rule);
+  color: var(--faint);
+  font-size: 0.9rem;
+  line-height: 1.8;
+}

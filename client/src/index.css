@@ -1,0 +1,490 @@
+/* المُسَمِّع — a Maghrebi mushaf at the hour before Fajr.
+   Night indigo ground, parchment text, and the coloured ink dots of Maghrebi vocalisation: each riwaya
+   has its own ink (--ink, set from riwayat.ts), which colours the dot, its badge and the teacher's
+   voice. One big ink dot is the control and the one bold element; everything else stays quiet. */
+
+:root {
+  --night: #101634; /* sky before dawn */
+  --night-2: #172046;
+  --night-3: #1f2a58;
+  --rule: #2c3866;
+  --parchment: #efe4cc; /* main text */
+  --parchment-dim: #b9b29f;
+  --faint: #7d7f99;
+  --ink: #d9b45f; /* riwaya ink; Warsh saffron by default */
+  --ink-soft: color-mix(in srgb, var(--ink) 18%, transparent);
+  --ink-glow: color-mix(in srgb, var(--ink) 35%, transparent);
+  --ui: 'Tajawal', 'Cairo', 'Noto Sans Arabic', system-ui, sans-serif;
+  --kufi: 'Reem Kufi', 'Tajawal', sans-serif;
+  --quran: 'Mushaf-warsh', 'Amiri', serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  /* dawn rising from below */
+  background:
+    radial-gradient(130% 55% at 50% 118%, #3a2f5c 0%, transparent 62%),
+    var(--night);
+  background-attachment: fixed;
+  color: var(--parchment);
+  font-family: var(--ui);
+  line-height: 1.85;
+  overscroll-behavior: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+/* ── shell ─────────────────────────────────────────── */
+.app {
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  max-width: 640px;
+  margin-inline: auto;
+  padding: max(12px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+}
+
+.brand {
+  font-family: var(--kufi);
+  font-weight: 600;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  color: var(--parchment);
+}
+
+/* the riwaya badge: an ink dot and the riwaya's name, like a marginal note */
+.riwaya {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding-inline: 12px 14px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ink) 45%, transparent);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 0.98rem;
+}
+
+.riwaya:disabled {
+  cursor: default;
+  opacity: 0.9;
+}
+
+.ink {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--row-ink, var(--ink));
+  box-shadow: 0 0 10px var(--row-ink, var(--ink));
+  flex-shrink: 0;
+}
+
+/* ── stage ─────────────────────────────────────────── */
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 0;
+  padding-top: 8px;
+}
+
+.stage.has-content {
+  justify-content: flex-start;
+}
+
+.status {
+  color: var(--parchment-dim);
+  font-size: 1rem;
+  min-height: 1.85em;
+}
+
+.where {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.9rem;
+  color: var(--faint);
+}
+
+.prayer {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.note {
+  color: var(--parchment-dim);
+  font-size: 0.95rem;
+  text-align: center;
+  max-width: 34ch;
+}
+
+/* ── the ink dot ───────────────────────────────────── */
+.orb {
+  --level: 0;
+  --size: 172px;
+  width: var(--size);
+  height: var(--size);
+  display: grid;
+  place-items: center;
+  position: relative;
+  flex-shrink: 0;
+  transition: width 0.4s ease, height 0.4s ease, transform 0.2s ease;
+}
+
+.orb > * {
+  grid-area: 1 / 1;
+}
+
+.has-content .orb {
+  --size: 104px;
+}
+
+.orb:active {
+  transform: scale(0.97);
+}
+
+/* a drop of the riwaya's ink, as the coloured dots of a Maghrebi mushaf */
+.dot {
+  width: 46%;
+  height: 46%;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 0 34px var(--ink-soft);
+  opacity: 0.9;
+  transition: transform 0.6s ease, opacity 0.4s ease, box-shadow 0.4s ease;
+}
+
+.halo {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 1px solid var(--ink-soft);
+  transition: transform 0.6s ease, border-color 0.4s ease;
+}
+
+/* listening: the drop swells with the voice, its light spreading on the paper */
+.orb.on .dot {
+  opacity: 1;
+  transform: scale(calc(1 + var(--level) * 0.3));
+  box-shadow: 0 0 calc(24px + var(--level) * 60px) var(--ink-glow);
+  transition: transform 0.08s linear, box-shadow 0.08s linear;
+}
+
+.orb.on .halo {
+  transform: scale(calc(0.86 + var(--level) * 0.2));
+  transition: transform 0.12s linear;
+}
+
+/* the teacher speaks: the light breathes */
+.orb.speaking .dot {
+  animation: breathe 1.8s ease-in-out infinite;
+}
+
+.orb.speaking .halo {
+  border-color: var(--ink-glow);
+}
+
+.orb.busy .halo {
+  border-color: transparent;
+  border-top-color: var(--ink);
+  animation: turn 1.1s linear infinite;
+}
+
+@keyframes breathe {
+  50% {
+    transform: scale(1.12);
+    box-shadow: 0 0 70px var(--ink-glow);
+  }
+}
+
+@keyframes turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── captions ──────────────────────────────────────── */
+.captions {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px 4px 24px;
+  mask-image: linear-gradient(to bottom, transparent 0, #000 28px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 28px);
+}
+
+.line {
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+/* what I say, in the riwaya's mushaf font (already loaded for the ayah card; no extra cost) */
+.line.you {
+  color: var(--parchment-dim);
+  font-family: var(--quran);
+  font-size: 1.5rem;
+  line-height: 1.95;
+}
+
+.line.you.live {
+  color: var(--parchment);
+}
+
+.line.you.live::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-inline-start: 4px;
+  vertical-align: -0.2em;
+  background: var(--ink);
+  animation: blink 1s steps(1) infinite;
+}
+
+/* the teacher's words: in ink, set off by a short rule at the line start */
+.line.teacher {
+  color: var(--ink);
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.75;
+  padding-inline-start: 14px;
+  border-inline-start: 2px solid var(--ink-glow);
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ── ayah / exam card: a page of the mushaf ────────── */
+.card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: start;
+  background: linear-gradient(180deg, #f3e8cf, #e9dcbd);
+  color: #2a2140;
+  border-radius: 6px 6px 18px 18px;
+  padding: 14px 18px 18px;
+  box-shadow: 0 20px 40px rgba(4, 6, 20, 0.5);
+  border-top: 4px solid var(--ink);
+}
+
+.card-title {
+  font-size: 0.85rem;
+  color: #6e6280;
+  font-weight: 700;
+}
+
+.quran {
+  font-family: var(--quran);
+  font-size: 1.9rem;
+  line-height: 2.25;
+}
+
+/* ── hints ─────────────────────────────────────────── */
+.hints {
+  color: var(--parchment-dim);
+  text-align: center;
+  font-size: 1rem;
+  margin-top: 22px;
+  max-width: 36ch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.faint {
+  color: var(--faint);
+  font-size: 0.92rem;
+}
+
+.link {
+  color: var(--ink);
+  font-size: 0.95rem;
+  margin-top: 10px;
+  padding: 6px 10px;
+}
+
+.bottom {
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+}
+
+.end {
+  min-width: 140px;
+  min-height: 48px;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: var(--night-2);
+  color: var(--parchment);
+}
+
+/* ── sheets ────────────────────────────────────────── */
+.sheet {
+  position: fixed;
+  inset: 0;
+  background: var(--night);
+  display: flex;
+  flex-direction: column;
+  padding: max(12px, env(safe-area-inset-top)) 16px 16px;
+  max-width: 640px;
+  margin-inline: auto;
+  z-index: 10;
+}
+
+.sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--kufi);
+  font-size: 1.25rem;
+  min-height: 48px;
+}
+
+.sheet-body {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.sheet details {
+  background: var(--night-2);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+
+.sheet summary {
+  cursor: pointer;
+  color: var(--parchment-dim);
+}
+
+.sheet .line.teacher {
+  font-size: 1.1rem;
+}
+
+.sheet .line.you {
+  font-size: 1.2rem;
+}
+
+/* riwaya picker: each row a line of its own mushaf, in its own ink */
+.riwaya-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: 'dot text' 'sample sample';
+  align-items: center;
+  gap: 2px 12px;
+  text-align: start;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--rule);
+  background: var(--night-2);
+}
+
+.riwaya-row.current {
+  border-color: var(--row-ink);
+  background: color-mix(in srgb, var(--row-ink) 10%, var(--night-2));
+}
+
+.riwaya-row .ink {
+  grid-area: dot;
+}
+
+.riwaya-row-text {
+  grid-area: text;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.5;
+}
+
+.riwaya-row-name {
+  font-weight: 700;
+  color: var(--parchment);
+}
+
+.riwaya-row-count {
+  font-size: 0.85rem;
+  color: var(--faint);
+}
+
+.riwaya-row-sample {
+  grid-area: sample;
+  font-size: 1.6rem;
+  line-height: 2;
+  color: var(--row-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb,
+  .dot,
+  .halo,
+  .line.you.live::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.sheet-head .link {
+  font-family: var(--ui);
+  margin-top: 0;
+}
+
+/* ── in salat: the screen must stay on, so it goes dark instead ── */
+.veil {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: #000;
+  display: grid;
+  place-items: end center;
+  padding-bottom: max(32px, env(safe-area-inset-bottom));
+  color: #2a2a2a;
+  font-size: 0.9rem;
+}

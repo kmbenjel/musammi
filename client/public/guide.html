@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#101634">
+  <meta name="description" content="كيف تبدأ مع المُسَمِّع: مفتاح Gemini مجاني من Google في دقيقتين، ثم التطبيق على هاتفك.">
+  <title>كيف تبدأ — المُسَمِّع</title>
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@500;600&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    /* The app's own night, parchment and saffron ink (client/src/index.css), on a page that only reads. */
+    :root {
+      --night: #101634;
+      --night-2: #172046;
+      --rule: #2c3866;
+      --parchment: #efe4cc;
+      --parchment-dim: #b9b29f;
+      --faint: #8a8ca6;
+      --ink: #d9b45f;
+      --ink-soft: color-mix(in srgb, var(--ink) 16%, transparent);
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: radial-gradient(130% 40% at 50% 112%, #3a2f5c 0%, transparent 62%), var(--night);
+      background-attachment: fixed;
+      color: var(--parchment);
+      font-family: 'Tajawal', 'Cairo', 'Noto Sans Arabic', system-ui, sans-serif;
+      font-size: 1.08rem;
+      line-height: 1.85;
+    }
+    main {
+      max-width: 640px;
+      margin-inline: auto;
+      padding: max(20px, env(safe-area-inset-top)) 20px max(36px, env(safe-area-inset-bottom));
+    }
+    a { color: var(--ink); text-underline-offset: 4px; }
+    a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 6px; }
+    header { padding-block: 12px 26px; }
+    .brand {
+      display: flex; align-items: center; gap: 12px;
+      font-family: 'Reem Kufi', 'Tajawal', sans-serif; font-weight: 600; font-size: 1.9rem; line-height: 1.3;
+    }
+    .brand::before {
+      content: ''; inline-size: 14px; block-size: 14px; border-radius: 50%;
+      background: var(--ink); box-shadow: 0 0 16px var(--ink);
+    }
+    .lead { margin-block-start: 12px; color: var(--parchment-dim); }
+    h2 { font-size: 1.25rem; font-weight: 700; line-height: 1.6; margin-block: 36px 12px; }
+    ol.steps { list-style: none; display: flex; flex-direction: column; gap: 14px; counter-reset: step; }
+    ol.steps > li {
+      counter-increment: step;
+      display: grid; grid-template-columns: 2.4rem 1fr; gap: 4px 12px;
+      padding-block: 16px; padding-inline: 12px 16px;
+      background: var(--night-2); border: 1px solid var(--rule); border-radius: 16px;
+    }
+    ol.steps > li::before {
+      content: counter(step);
+      grid-row: span 2;
+      font-family: 'Reem Kufi', 'Tajawal', sans-serif; font-size: 1.6rem; line-height: 1.4; color: var(--ink);
+      text-align: center;
+    }
+    .steps h3 { font-size: 1.12rem; font-weight: 700; line-height: 1.6; }
+    .steps p + p, .steps p + ul, .steps ul + p { margin-block-start: 8px; }
+    .steps ul { padding-inline-start: 1.1em; color: var(--parchment-dim); }
+    .steps ul li::marker { color: var(--ink); }
+    .btn {
+      display: inline-block; margin-block-start: 10px;
+      padding: 10px 20px; border-radius: 999px;
+      background: var(--ink); color: var(--night); font-weight: 700; text-decoration: none;
+    }
+    .ui {
+      padding: 1px 7px; border-radius: 6px; white-space: nowrap;
+      background: var(--ink-soft); color: var(--parchment);
+      -webkit-box-decoration-break: clone; box-decoration-break: clone;
+    }
+    .say { color: var(--ink); }
+    ul.plain { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    ul.plain li { padding-inline-start: 18px; position: relative; }
+    ul.plain li::before {
+      content: ''; position: absolute; inset-inline-start: 0; inset-block-start: 0.8em;
+      inline-size: 6px; block-size: 6px; border-radius: 50%; background: var(--ink);
+    }
+    .notes li { color: var(--parchment-dim); }
+    .notes strong { color: var(--parchment); font-weight: 700; }
+    footer {
+      margin-block-start: 40px; padding-block-start: 18px; border-block-start: 1px solid var(--rule);
+      color: var(--faint); font-size: 0.92rem; display: flex; flex-direction: column; gap: 6px;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="brand">المُسَمِّع</p>
+    <p class="lead">شيخ يسمع حفظك للقرآن بصوتك: يسكت على الصواب، ويقول «أعِد» عند الخطأ، ويفتح عليك إذا نسيت. برواية ورش أصلاً، وبسبع روايات أخرى من مصاحف مجمع الملك فهد.</p>
+    <p class="lead">يعمل بمفتاح مجاني من Google باسمك أنت. أربع خطوات، في نحو دقيقتين:</p>
+  </header>
+
+  <ol class="steps">
+    <li>
+      <h3>افتح Google AI Studio</h3>
+      <div>
+        <p>وادخل بحساب Google الذي تستعمله في Gmail أو يوتيوب. إن كانت أول مرة فوافق على الشروط.</p>
+        <a class="btn" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">افتح صفحة المفاتيح</a>
+      </div>
+    </li>
+    <li>
+      <h3>أنشئ مفتاحاً وانسخه</h3>
+      <div>
+        <p>اضغط <bdi class="ui">Create API key</bdi> (أو «إنشاء مفتاح» إن ظهرت الصفحة بالعربية). إن سألك عن مشروع فاختر الموجود أو أنشئ واحداً جديداً.</p>
+        <p>يظهر المفتاح سطراً طويلاً من الحروف والأرقام: اضغط زر النسخ بجانبه.</p>
+      </div>
+    </li>
+    <li>
+      <h3>الصقه في المُسَمِّع</h3>
+      <div>
+        <p><a href="/">افتح التطبيق</a> واضغط <span class="ui">أدخل مفتاحك</span>، ثم <span class="ui">لصق</span>، ثم <span class="ui">حفظ</span>.</p>
+        <p>يبقى المفتاح على هاتفك، ولا يُرسَل إلا إلى Google.</p>
+      </div>
+    </li>
+    <li>
+      <h3>ثبّته على هاتفك</h3>
+      <div>
+        <ul>
+          <li><strong>أندرويد (Chrome):</strong> زر القائمة <bdi>⋮</bdi> ثم «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».</li>
+          <li><strong>آيفون (Safari):</strong> زر المشاركة ثم «إضافة إلى الشاشة الرئيسية».</li>
+        </ul>
+        <p>وعند أول جلسة اسمح له باستعمال الميكروفون.</p>
+      </div>
+    </li>
+  </ol>
+
+  <h2>كيف تستعمله</h2>
+  <ul class="plain">
+    <li>اضغط الدائرة، وقل ما ستقرأ («سأقرأ سورة الملك») ثم اقرأ. يسكت شيخك ما دمتَ مصيباً.</li>
+    <li>إذا نسيت فقل <span class="say">«افتح»</span>، أو اسكت قليلاً وسط الآية فيفتح عليك.</li>
+    <li>قل <span class="say">«اختبرني»</span> لأسئلة من المصحف، واسأله عن معنى آية فيجيبك من تفسير ابن جُزَيّ.</li>
+    <li>للصلاة: اضغط ثم كبّر واقرأ. تُظلم الشاشة وحدها، فاتركها مفتوحة.</li>
+  </ul>
+
+  <h2>قبل أن تبدأ</h2>
+  <ul class="plain notes">
+    <li><strong>الخصوصية:</strong> في الخطة المجانية قد يطّلع مراجعون من Google على ما يصلها (صوت تلاوتك ونصّها) وتستعمله في تحسين منتجاتها. فإن فعّلت الدفع في حسابك فلا تستعمله في ذلك.</li>
+    <li><strong>العمر:</strong> يشترط Google أن يكون صاحب المفتاح قد بلغ 18 سنة.</li>
+    <li><strong>الحدّ المجاني:</strong> للخطة المجانية حدّ من الاستعمال، فإذا بلغته أخبرك التطبيق.</li>
+    <li><strong>جلساتك</strong> تُحفظ على هاتفك وحده.</li>
+    <li><strong>المكتبة:</strong> كتب القراءات وعلوم القرآن (البدور الزاهرة، النشر، الإتقان) وسائر التفاسير على حاسوب صاحب التطبيق، فليست في هذه النسخة. ابن جُزَيّ متاح للجميع.</li>
+    <li><strong>إن لم تفتح لك صفحة AI Studio</strong> فلعل خدمة Gemini غير متاحة في بلدك بعدُ.</li>
+    <li><strong>لحذف المفتاح:</strong> «مفتاح Gemini» في التطبيق ثم «حذف المفتاح»، ويمكنك حذفه من AI Studio متى شئت.</li>
+  </ul>
+
+  <footer>
+    <p>نصّ المصاحف وخطوطها من مجمع الملك فهد لطباعة المصحف الشريف، والتلاوات المسجّلة من <bdi>mp3quran.net</bdi>.</p>
+    <p>المُسَمِّع مفتوح المصدر: <a href="https://github.com/kmbenjel/musammi" dir="ltr">github.com/kmbenjel/musammi</a></p>
+  </footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,57 @@
+KFGQPC Uthmanic Script fonts — licence
+=========================================
+
+The eight font.woff2 files under riwayat/<key>/ are the fonts of the King Fahd Glorious Quran Printing
+Complex (KFGQPC), https://qurancomplex.gov.sa/quran-dev/ (via github.com/thetruetruth/quran-data-kfgqpc).
+They are distributed here unmodified (byte-identical to that source) under the end-user licence embedded
+in each font (OpenType name table, ID 13), reproduced verbatim below. In short: free to use, copy and
+distribute; they may not be sold, modified, altered, translated or reverse-engineered.
+They are NOT covered by the AGPL licence of this project.
+
+------------------------------------------------------------------------
+Fonts: warsh/font.woff2 (KFGQPC WARSH Uthmanic Script, Version 0.10)
+------------------------------------------------------------------------
+
+ELECTRONIC END-USER LICENSE AGREEMENT
+
+By installing this Font You accept all the terms and conditions of this Agreement.
+
+Copyright (c) 2008 by King Fahd Glorious Quran Printing Complex (KFGQPC), Al-?Madinah Munawarrah, Kingdom of Saudi Arabia. All Rights Reserved. The Font is ?owned by KFGQPC and its structure, organization and code are the valuable asset of ?KFGQPC. This Agreement does not grant you any intellectual property rights in the Font.
+
+Permission is hereby granted, Free of Cost, to any person obtaining a copy of this Font ?accompanying this license, the rights to Use, Copy, Distribute, subject to the following conditions:
+
+1.    The Font Software cannot be Sold, Modified, Altered, Translated, Reverse ?Engineered, Decompiled, Disassembled, Reproduced or Attempted to discover the ?Source Code of this Font in no means.
+
+2.    The Font Software is provided "AS IS", and KFGQPC makes no warranties as to its ?use or performance, fitness for a particular purpose. KFGQPC does not and cannot ?warrant the performance or results you may obtain by using the Font. In no event shall ?KFGQPC be liable for any Claims, Damages or other Liability, including any Damages, ?arising from, out of the use or inability to use the Font or from other dealings in the Font.
+
+------------------------------------------------------------------------
+Fonts: qaloon/font.woff2 (KFGQPC QALOON Uthmanic Script, Version 0.10)
+------------------------------------------------------------------------
+
+ELECTRONIC END-USER LICENSE AGREEMENT
+
+By installing this Font You accept all the terms and conditions of this Agreement.
+
+Copyright (c) 2010 by King Fahd Glorious Quran Printing Complex (KFGQPC), Al-Madinah Munawarrah, Kingdom of Saudi Arabia. All Rights Reserved. The Font is owned by KFGQPC and its structure, organization and code are the valuable asset of KFGQPC. This Agreement does not grant you any intellectual property rights in the Font.
+
+Permission is hereby granted, Free of Cost, to any person obtaining a copy of this Font ?accompanying this license, the rights to Use, Copy, Distribute, subject to the following conditions:
+
+1.    The Font Software cannot be Sold, Modified, Altered, Translated, Reverse ?Engineered, Decompiled, Disassembled, Reproduced or Attempted to discover the ?Source Code of this Font in no means.
+
+2.    The Font Software is provided "AS IS", and KFGQPC makes no warranties as to its ?use or performance, fitness for a particular purpose. KFGQPC does not and cannot ?warrant the performance or results you may obtain by using the Font. In no event shall ?KFGQPC be liable for any Claims, Damages or other Liability, including any Damages, ?arising from, out of the use or inability to use the Font or from other dealings in the Font.
+
+------------------------------------------------------------------------
+Fonts: hafs/font.woff2 (KFGQPC HAFS Uthmanic Script, Version 0.18); shouba/font.woff2 (KFGQPC SHOUBA Uthmanic Script, Version 0.08); doori/font.woff2 (KFGQPC DOORI Uthmanic Script, Version 0.09); soosi/font.woff2 (KFGQPC SOOSI Uthmanic Script, Version 0.09); bazzi/font.woff2 (KFGQPC BAZZI Uthmanic Script, Version 0.07); qumbul/font.woff2 (KFGQPC QUMBUL Uthmanic Script, Version 0.07)
+------------------------------------------------------------------------
+
+ELECTRONIC END-USER LICENSE AGREEMENT
+
+By installing this Font You accept all the terms and conditions of this Agreement.
+
+Copyright (c) 2010 by King Fahd Glorious Quran Printing Complex (KFGQPC), AlMadinah AlMunawarrah, Kingdom of Saudi Arabia. All Rights Reserved. KFGQPC retains full title and ownership of this Typeface both as artwork and font software. This Agreement does not grant you any intellectual property rights in the Font.
+
+Permission is hereby granted, Free of Cost, to any person obtaining a copy of this Font accompanying this license, the rights to Use, Copy, Distribute, subject to the following conditions:
+
+1.    The Font Software cannot be Sold, Modified, Altered, Translated, Reverse Engineered, Decompiled, Disassembled, Reproduced or Attempted to discover the Source Code of this Font in no means.
+
+2.    The Font Software is provided "AS IS", and KFGQPC makes no warranties as to its use or performance, fitness for a particular purpose. KFGQPC does not and cannot warrant the performance or results you may obtain by using the Font. In no event shall KFGQPC be liable for any Claims, Damages or other Liability, including any Damages, arising from, out of the use or inability to use the Font or from other dealings in the Font.

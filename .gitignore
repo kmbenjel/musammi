@@ -1,0 +1,14 @@
+node_modules
+client/node_modules
+client/dist
+.env
+.git
+/archive
+certs/
+server.log
+/sessions
+.claude/settings.local.json
+/briefs
+# wrangler dev: local secrets and state
+.dev.vars
+.wrangler/
