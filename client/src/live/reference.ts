@@ -170,33 +170,35 @@ export class PositionTracker {
    */
   private placeStretch(ws: string[]): void {
     if (ws.length < 4 || this.matched < 6) return; // not before the starting place is confirmed
+    // start: the first word that fits (the search from k looks up to 6 words ahead for it)
     const fits = (k: number) => {
-      let hit = 0, j = k;
+      let hit = 0, j = k, start = k;
       for (const w of ws) {
         for (let t = j; t < Math.min(j + (hit ? 3 : 6), this.words.length); t++) {
-          if (simWord(w, this.words[t]) >= 0.8) { hit++; j = t + 1; break; }
+          if (simWord(w, this.words[t]) >= 0.8) { if (!hit) start = t; hit++; j = t + 1; break; }
         }
       }
-      return { hit, end: j };
+      return { hit, start, end: j };
     };
     const here = fits(Math.max(0, this.ptr - 3));
     if (here.hit >= ws.length * 0.5) return; // continues where it was
-    let best = -1, bestHit = 0, bestEnd = 0;
+    let best = { hit: 0, start: -1, end: 0 };
     for (let k = this.ptr + 8; k < this.words.length; k++) {
       const f = fits(k);
-      if (f.hit > bestHit) { best = k; bestHit = f.hit; bestEnd = f.end; }
+      if (f.hit > best.hit) best = f;
     }
-    if (best < 0 || bestHit < Math.max(4, ws.length * 0.7)) return;
+    if (best.start < 0 || best.hit < Math.max(4, ws.length * 0.7)) return;
     const from = this.ayat[this.words[Math.max(0, Math.min(this.ptr, this.words.length) - 1)].idx]; // last ayah reached
-    const to = this.ayat[this.words[best].idx];
+    const to = this.ayat[this.words[best.start].idx];
     if (to.id - from.id >= 2) {
       // a finished ayah, then a fresh start at the beginning of another: a deliberate move (to review the
       // mutashabihat, say), not a slip into a similar ayah halfway through
       const finished = this.ptr >= this.words.length || this.words[this.ptr].idx !== this.words[this.ptr - 1]?.idx;
-      const fresh = best === 0 || this.words[best - 1].idx !== this.words[best].idx;
+      const fresh = best.start === 0 || this.words[best.start - 1].idx !== this.words[best.start].idx;
       this.skipped = { from, to, moved: finished && fresh };
-      this.ptr = bestEnd;
     }
+    // in the same ayah or the next, words the transcript dropped (or a short skip feed's window cannot reach): follow
+    this.ptr = best.end;
   }
 
   setRange(ayat: Ayah[], keepPosition = false, diffs: HafsDiffs = {}) {
@@ -258,7 +260,10 @@ export class PositionTracker {
     this.pending = this.pending.slice(lastSpace + 1);
     const before = this.ptr;
     this.placeStretch(normalizeTranscript(done).split(' ').filter((w) => w.length >= 2));
-    if (this.ptr !== before) return true;
+    if (this.ptr !== before) {
+      this.reached = Math.max(this.reached, this.ptr);
+      return true;
+    }
     for (const w of normalizeTranscript(done).split(' ')) {
       if (!w || w.length < 2) continue;
       this.seen++;

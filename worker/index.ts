@@ -3,7 +3,7 @@
 // - Static app (client/dist, incl. riwayat data and Ibn Juzay's tafsir under /tafsir/) via the ASSETS binding.
 // - /api/live/token: the ephemeral Gemini Live token, with the session prompt for the chosen riwaya (the owner's
 //   key; everyone else brings their own key and mints the same token in the browser, see client/src/live/token.ts).
-// - /api/sessions: finished sessions kept in KV; the laptop copies them into sessions/ (scripts/pull_sessions.mjs).
+// - /api/sessions: sessions kept in KV, saved while they run (one key each); the laptop copies them into sessions/ (scripts/pull_sessions.mjs).
 // - /api/tafsir, /api/library: Ibn Juzay from the static files, open to everyone; everything else from the laptop's
 //   local Shamela (LIBRARY_ORIGIN, through the tunnel) when the laptop is on, for the owner only.
 import { mintToken } from '../client/src/live/token';
@@ -77,11 +77,29 @@ async function tafsir(req: Request, env: Env, url: URL, authed: boolean): Promis
   return json({ ok: true, book: d.book, author: d.author, part: a.part, page: a.page, text: a.text });
 }
 
+// A session is saved several times while it runs (every minute, when the app is hidden, at «إنهاء»), always under
+// the same key s:<start time>, so each save overwrites the one before. The key's metadata keeps when it was last
+// written (u, server time: what the laptop's pull goes by) and how far the session had got (end, the phone's time),
+// so an older save that arrives late does not overwrite a newer one.
+type Meta = { u?: number; end?: number };
+
+/** A JSON body, gzipped by the app (so a long session fits a keepalive request) or not: gzip starts 1f 8b, JSON never does. */
+async function readJson(req: Request): Promise<unknown> {
+  const bytes = new Uint8Array(await req.arrayBuffer());
+  if (bytes[0] !== 0x1f || bytes[1] !== 0x8b) return JSON.parse(new TextDecoder().decode(bytes));
+  return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
+}
+
 async function sessions(req: Request, env: Env, url: URL): Promise<Response> {
   if (req.method === 'POST') {
-    const body = (await req.json().catch(() => null)) as { at?: number; lines?: unknown[]; events?: unknown[] } | null;
+    const body = (await readJson(req).catch(() => null)) as { at?: number; end?: number; lines?: unknown[]; events?: unknown[] } | null;
     if (!body) return json({ ok: false }, 400);
     const at = Number(body.at) || Date.now();
+    const key = `s:${new Date(at).toISOString()}`;
+    const end = Number(body.end) || 0;
+    const old = await env.SESSIONS.getWithMetadata<Meta>(key, 'stream');
+    await old.value?.cancel(); // only its metadata is needed
+    if (old.metadata?.end && end < old.metadata.end) return json({ ok: true, stale: true });
     // the whole session is sent; a KV value is at most 25 MB, so a (very) long one loses its oldest events, then lines
     let value = JSON.stringify(body);
     while (new TextEncoder().encode(value).length > 20_000_000 && (body.events?.length || body.lines?.length)) {
@@ -89,15 +107,27 @@ async function sessions(req: Request, env: Env, url: URL): Promise<Response> {
       else body.lines!.splice(0, Math.ceil(body.lines!.length / 4));
       value = JSON.stringify(body);
     }
-    await env.SESSIONS.put(`s:${new Date(at).toISOString()}`, value);
+    await env.SESSIONS.put(key, value, { metadata: { u: Date.now(), end } satisfies Meta });
     return json({ ok: true });
   }
-  // GET: the laptop pulls what it does not have yet (?after=<last key>)
+  // GET: the laptop pulls what was written since its last pull (?since=<ms, server time>; `now` comes back for the
+  // next one). A key written before the metadata existed counts as written at its own time. ?after=<key>: the old form.
+  const since = url.searchParams.has('since') ? Number(url.searchParams.get('since')) || 0 : null;
   const after = url.searchParams.get('after') || '';
-  const list = await env.SESSIONS.list({ prefix: 's:', limit: 200 });
-  const keys = list.keys.map((k) => k.name).filter((k) => k > after);
+  const now = Date.now();
+  const keys: string[] = [];
+  let cursor: string | undefined;
+  do {
+    const list = await env.SESSIONS.list<Meta>({ prefix: 's:', cursor });
+    for (const k of list.keys) {
+      const u = k.metadata?.u ?? Date.parse(k.name.slice(2));
+      if (since !== null ? u > since : k.name > after) keys.push(k.name);
+    }
+    cursor = list.list_complete ? undefined : list.cursor;
+  } while (cursor);
+  keys.sort();
   const items = await Promise.all(keys.map(async (k) => ({ key: k, value: await env.SESSIONS.get(k, 'json') })));
-  return json({ ok: true, items });
+  return json({ ok: true, now, items });
 }
 
 async function manifest(env: Env, url: URL): Promise<Response> {

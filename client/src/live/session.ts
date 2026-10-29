@@ -119,13 +119,13 @@ const HELD_FRAMES = (RECONNECT_MS + CONNECT_MS) / 100;
 const VOICE_GAIN = 0.8;
 const SOFT_GAIN = 0.45; // «أعِد»، «أحسنت»: a quiet word over the recitation
 
-// The model sometimes "says" placeholders instead of staying silent: <no speech>, {pause}, <!-- … -->, ___
+// The model sometimes "says" placeholders instead of staying silent: <no speech>, {pause}, *صمت تام*, <!-- … -->, ___
 // Said over the teacher's answer without asking it to stop.
 const BACKCHANNEL = new Set(['طيب', 'نعم', 'اي', 'ايوه', 'اه', 'ها', 'جميل', 'صحيح']);
 
 export function cleanSpoken(text: string): string {
   const t = text
-    .replace(/<!--[\s\S]*?-->|<[^>]*>|\{[^}]*\}/g, ' ')
+    .replace(/<!--[\s\S]*?-->|<[^>]*>|\{[^}]*\}|\*[^*]*\*/g, ' ')
     .replace(/[_\-—–​]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();

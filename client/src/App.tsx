@@ -7,7 +7,8 @@ import { loadGeminiKey, saveGeminiKey, tokenWithOwnKey } from './services/gemini
 import { KeySheet } from './KeySheet';
 
 type Line = { id: number; who: 'you' | 'teacher'; text: string; live?: boolean };
-type Past = { at: number; riwaya?: RiwayaKey; where?: { s: number; a: number }[]; lines: { who: 'you' | 'teacher'; text: string }[]; events?: string[] };
+// at: when the session started (its id: every save of it goes under it); end: when this copy of it was taken
+type Past = { at: number; end?: number; riwaya?: RiwayaKey; where?: { s: number; a: number }[]; lines: { who: 'you' | 'teacher'; text: string }[]; events?: string[] };
 
 const ACCESS_KEY = 'hifz_warsh_access_key';
 const HISTORY_KEY = 'hifz_warsh_history';
@@ -18,6 +19,7 @@ const RESUME_MS = 15 * 60 * 1000; // a session started this soon after goes on f
 const SHOWN_LINES = 60; // on screen; the whole session is kept and saved
 const KEPT_LINES = 120; // per session in this phone's history (localStorage is ~5 MB)
 const KEEPALIVE_MAX = 60_000; // a keepalive request body must stay under 64 KB
+const SAVE_EVERY = 60_000; // a running session is saved this often (when something changed), so a killed app loses little
 
 const store = {
   get(key: string) {
@@ -85,6 +87,18 @@ function pastSessionsText(items: Past[]): string {
     .join('\n\n');
 }
 
+/** A request body gzipped (the Worker sees the gzip header bytes and inflates it); as is where the browser can't. */
+async function gzipped(json: string): Promise<{ body: Blob; type: string }> {
+  const plain = { body: new Blob([json]), type: 'application/json' };
+  if (typeof CompressionStream === 'undefined') return plain;
+  try {
+    const body = await new Response(plain.body.stream().pipeThrough(new CompressionStream('gzip'))).blob();
+    return { body, type: 'application/json+gzip' };
+  } catch {
+    return plain;
+  }
+}
+
 function loadHistory(): Past[] {
   try {
     return JSON.parse(store.get(HISTORY_KEY) || '[]');
@@ -121,12 +135,32 @@ export const App: React.FC = () => {
   const events = useRef<string[]>([]);
   const riwayaRef = useRef(riwaya);
   riwayaRef.current = riwaya;
+  const linesNow = useRef(lines);
+  linesNow.current = lines;
+  const savedSig = useRef(''); // what the last save held, so an unchanged session is not sent again
+  const autosave = useRef(() => {});
+  autosave.current = () => {
+    if (startedAt.current) save(running(), linesNow.current);
+  };
 
   useEffect(() => {
     captions.current?.scrollTo({ top: captions.current.scrollHeight, behavior: 'smooth' });
   }, [lines]);
 
   useEffect(() => () => session.current?.stop(), []);
+
+  // The phone may kill the app (swiped away, screen off, out of memory) without «إنهاء»: save as it goes,
+  // every minute and whenever the app is hidden (the last moment a page is sure to run).
+  useEffect(() => {
+    const hidden = () => document.visibilityState === 'hidden' && autosave.current();
+    const leaving = () => autosave.current();
+    document.addEventListener('visibilitychange', hidden);
+    window.addEventListener('pagehide', leaving);
+    return () => {
+      document.removeEventListener('visibilitychange', hidden);
+      window.removeEventListener('pagehide', leaving);
+    };
+  }, []);
 
   useEffect(() => {
     useMushafFont(riwaya);
@@ -160,6 +194,12 @@ export const App: React.FC = () => {
   }, [accessKey]);
 
   const active = state === 'connecting' || state === 'listening' || state === 'reconnecting';
+
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => autosave.current(), SAVE_EVERY);
+    return () => clearInterval(id);
+  }, [active]);
 
   const authed = () => ({ 'X-Access-Key': accessKey ?? '' });
 
@@ -267,7 +307,7 @@ export const App: React.FC = () => {
       exam.current = { key: '', queue: [], n: 0 };
       startedAt.current = Date.now();
       s = new RecitationSession(
-        { getToken, mushaf, switchRiwaya, fromHafs, pastSessions: () => pastSessionsText(loadHistory()), tafsir, library, nextExamQuestion, resume: lastPlace() },
+        { getToken, mushaf, switchRiwaya, fromHafs, pastSessions: () => pastSessionsText(loadHistory().filter((p) => p.at !== startedAt.current)), tafsir, library, nextExamQuestion, resume: lastPlace() },
         {
           onState: (st, detail) => {
             if (session.current !== s) return; // replaced by a newer start(), or already stopped
@@ -326,7 +366,47 @@ export const App: React.FC = () => {
     }
   }
 
+  type Run = { at: number; riwaya: RiwayaKey; where: { s: number; a: number }[]; events: string[] };
+  const running = (): Run => ({ at: startedAt.current, riwaya: riwayaRef.current, where: where.current, events: events.current });
+
+  /** Saves the session so far under its start time: each save replaces the one before, on this phone and the server. */
+  function save(run: Run, rows: Line[], final = false) {
+    const kept = rows.filter((l) => l.text.trim()).map(({ who, text }) => ({ who, text }));
+    if (!run.at || !kept.length) return;
+    const sig = `${run.at}|${kept.length}|${kept[kept.length - 1].text.length}|${run.events.length}|${run.where.length}|${run.riwaya}`;
+    if (sig === savedSig.current && !final) return; // the last save is sent anyway: one before it may yet fail
+    savedSig.current = sig;
+    const session: Past = { at: run.at, end: Date.now(), riwaya: run.riwaya, where: run.where, lines: kept, events: run.events };
+    // the phone keeps a short copy (no events) for past_sessions and the list
+    const next = [{ ...session, lines: kept.slice(-KEPT_LINES), events: undefined }, ...loadHistory().filter((p) => p.at !== run.at)].slice(0, 30);
+    store.set(HISTORY_KEY, JSON.stringify(next));
+    setHistory(next);
+    // the whole session to the server (owner only: a reciter with their own key keeps them on this device).
+    // Gzipped (the transcript and events shrink several times over), so that even a long session fits a keepalive
+    // request, the kind that outlives the page when the app is swiped away; a bigger one goes as a plain request, and
+    // if the page dies first the save of a minute ago is what stays.
+    if (!accessKey) return;
+    const key = accessKey;
+    const failed = () => {
+      if (savedSig.current === sig) savedSig.current = ''; // try again at the next save
+    };
+    gzipped(JSON.stringify({ ...session, ua: navigator.userAgent }))
+      .then(({ body, type }) =>
+        fetch('/api/sessions', {
+          method: 'POST',
+          headers: { 'X-Access-Key': key, 'Content-Type': type },
+          body,
+          keepalive: body.size < KEEPALIVE_MAX,
+        }),
+      )
+      .then((r) => r.ok || failed(), failed);
+  }
+
   function stop() {
+    if (startedAt.current) {
+      const run = running(); // taken now: a new start() replaces these
+      setLines((prev) => (save(run, prev, true), prev));
+    }
     const place = session.current?.place();
     if (session.current) store.set(PLACE_KEY, place ? JSON.stringify({ ...place, at: Date.now() }) : null); // an exam, or no place: nothing to go on from
     session.current?.stop();
@@ -336,25 +416,7 @@ export const App: React.FC = () => {
     setSpeaking(false);
     setPraying(false);
     setMushaf(null);
-    setLines((prev) => {
-      const kept = prev.filter((l) => l.text.trim()).map(({ who, text }) => ({ who, text }));
-      if (kept.length) {
-        const session: Past = { at: Date.now(), riwaya: riwayaRef.current, where: where.current, lines: kept, events: events.current };
-        // the whole session to the server (owner only: a reciter with their own key keeps them on this device);
-        // the phone keeps a short copy (no events) for past_sessions and the list
-        const next = [{ ...session, lines: kept.slice(-KEPT_LINES), events: undefined }, ...loadHistory()].slice(0, 30);
-        const body = JSON.stringify({ ...session, ua: navigator.userAgent });
-        if (accessKey) fetch('/api/sessions', {
-          method: 'POST',
-          headers: { 'X-Access-Key': accessKey, 'Content-Type': 'application/json' },
-          body,
-          keepalive: new Blob([body]).size < KEEPALIVE_MAX,
-        }).catch(() => {});
-        store.set(HISTORY_KEY, JSON.stringify(next));
-        setHistory(next);
-      }
-      return prev.map((l) => ({ ...l, live: false }));
-    });
+    setLines((prev) => prev.map((l) => ({ ...l, live: false })));
   }
 
   const r = riwayaOf(riwaya);
