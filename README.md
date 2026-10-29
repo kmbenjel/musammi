@@ -291,7 +291,7 @@ fix. Known gaps and next steps:
 المُسَمِّع is built by one developer, in the open. If it helps you or someone you teach:
 
 - **Use it and report**: open an issue with what the teacher got wrong (the time, the surah and ayah, what you recited).
-- **Sponsor**: sponsorship would fund the hosted tier and the work on the roadmap.
+- **Sponsor**: [GitHub Sponsors](https://github.com/sponsors/kmbenjel) funds the hosted tier and the work on the roadmap.
 - **Partner or invest**: making it bigger and simpler (a hosted tier with no key, halaqa and teacher dashboards,
   more riwayat audio) needs funding. Reach out through [the author's GitHub profile](https://github.com/kmbenjel).
 

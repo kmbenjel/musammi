@@ -18,6 +18,8 @@ export const RECITERS: Record<RiwayaKey, Reciter[]> = {
     { name: 'العيون الكوشي', folder: CDN + 'laayoun-kouchi/r1/', read: 16 },
     { name: 'محمود خليل الحصري', folder: CDN + 'mahmoud-husary/r3/', read: 120 },
     { name: 'عبد الباسط عبد الصمد', folder: CDN + 'abdulbasit-abdulsamad/r2/' },
+    { name: 'عمر القزابري', folder: CDN + 'omar-kazabri/r1/', read: 80 }, // user, 2026-10-29
+    { name: 'ياسين الجزائري', folder: CDN + 'yassen-jazairi/r1/', read: 14 },
   ],
   qaloon: [{ name: 'علي الحذيفي', folder: CDN + 'ali-hudhaifi/r2/', read: 75 }],
   hafs: [
