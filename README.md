@@ -35,7 +35,7 @@ Warsh by default, and seven other riwayat of the King Fahd Complex mushafs.**
 
 ### ادعم المشروع
 
-المُسَمِّع مجاني ومفتوح المصدر، ويطوّره شخص واحد. الهدف الحالي **600 دولار**، وهي ثمن اشتراك Claude Ultra لثلاثة أشهر (200 دولار في الشهر)، يُستعمل في تطوير المشروع وإصلاح أخطائه. إن نفعك المُسَمِّع أو نفع من تعلّمه، فادعمه عبر **[PayPal](https://paypal.me/kmbenjel)** أو **[GitHub Sponsors](https://github.com/sponsors/kmbenjel)**، أو بتحويل بنكي إلى CIH Bank في المغرب: **[معلومات التحويل](https://musammi.benjelloun.dev/support)**.
+المُسَمِّع مجاني ومفتوح المصدر، ويطوّره شخص واحد. الهدف الحالي **720 دولاراً**، وهي تكلفة اشتراك Claude Ultra لثلاثة أشهر مع الضرائب، يُستعمل في تطوير المشروع وإصلاح أخطائه. إن نفعك المُسَمِّع أو نفع من تعلّمه، فادعمه عبر **[PayPal](https://paypal.me/kmbenjel)** أو **[GitHub Sponsors](https://github.com/sponsors/kmbenjel)**، أو بتحويل بنكي إلى CIH Bank في المغرب: **[معلومات التحويل](https://musammi.benjelloun.dev/support)**.
 
 </div>
 
@@ -295,8 +295,8 @@ fix. Known gaps and next steps:
 al-Musammiʿ is built by one developer, in the open. If it helps you or someone you teach:
 
 - **Use it and report**: open an issue with what the teacher got wrong (the time, the surah and ayah, what you recited).
-- **Sponsor**: the current goal on [GitHub Sponsors](https://github.com/sponsors/kmbenjel) is **$600**, three months of Claude Ultra
-  ($200 a month) for developing the project. Beyond that, sponsorship funds the hosted tier and the work on the roadmap.
+- **Sponsor**: the current goal on [GitHub Sponsors](https://github.com/sponsors/kmbenjel) is **$720**, three months of Claude Ultra
+  with tax, for developing the project. Beyond that, sponsorship funds the hosted tier and the work on the roadmap.
   You can also give through [PayPal](https://paypal.me/kmbenjel) or by bank transfer to CIH Bank in Morocco: [transfer details](https://musammi.benjelloun.dev/support).
 - **Partner or invest**: making it bigger and simpler (a hosted tier with no key, halaqa and teacher dashboards,
   more riwayat audio) needs funding. Reach out through [the author's GitHub profile](https://github.com/kmbenjel).
