@@ -44,6 +44,16 @@ export async function tokenWithOwnKey(apiKey: string, handle: string | null, riw
   }
 }
 
+/** The token of the connection that listens for the stop word (live/stopword.ts). */
+export async function listenTokenWithOwnKey(apiKey: string) {
+  const { mintListenToken } = await import('../live/token');
+  try {
+    return await mintListenToken(apiKey);
+  } catch (e) {
+    throw new Error(why(e));
+  }
+}
+
 /** Checks a pasted key by minting a token with it (free: no Live session is opened). null = the key works. */
 export async function checkGeminiKey(apiKey: string): Promise<string | null> {
   try {

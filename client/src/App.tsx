@@ -1,14 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { RecitationSession, type MushafData, type Place, type SessionState, type ShownCard } from './live/session';
+import { RecitationSession, type MushafData, type Place, type SessionState, type ShownCard, type VoiceLink } from './live/session';
 import { RIWAYAT, riwayaOf, type RiwayaKey } from './live/riwayat';
+import { recordMic } from './live/recorder';
 import { loadRiwaya, setRiwaya, type SurahMeta } from './services/quranData';
 import { generateTestExam, type TestQuestion } from './services/testGenerator';
-import { loadGeminiKey, saveGeminiKey, tokenWithOwnKey } from './services/geminiKey';
+import { listenTokenWithOwnKey, loadGeminiKey, saveGeminiKey, tokenWithOwnKey } from './services/geminiKey';
 import { KeySheet } from './KeySheet';
+import { normalizeTranscript } from './utils/arabic';
 
-type Line = { id: number; who: 'you' | 'teacher'; text: string; live?: boolean };
+// m: the stretch as printed in the mushaf (read right): shown instead of the transcript, which is still saved
+// gone: taken off the screen, still saved
+type Line = { id: number; who: 'you' | 'teacher'; text: string; live?: boolean; m?: string; gone?: boolean };
 // at: when the session started (its id: every save of it goes under it); end: when this copy of it was taken
-type Past = { at: number; end?: number; riwaya?: RiwayaKey; where?: { s: number; a: number }[]; lines: { who: 'you' | 'teacher'; text: string }[]; events?: string[] };
+type Past = { at: number; end?: number; riwaya?: RiwayaKey; where?: { s: number; a: number }[]; lines: { who: 'you' | 'teacher'; text: string; m?: string }[]; events?: string[] };
 
 const ACCESS_KEY = 'hifz_warsh_access_key';
 const HISTORY_KEY = 'hifz_warsh_history';
@@ -17,6 +21,7 @@ const RIWAYA_KEY = 'hifz_warsh_riwaya';
 const PLACE_KEY = 'hifz_warsh_last_place'; // where the last session stopped
 const RESUME_MS = 15 * 60 * 1000; // a session started this soon after goes on from there
 const SHOWN_LINES = 60; // on screen; the whole session is kept and saved
+const MISTAKE_MS = 8000; // a mistake stays this long after «أعد», so that he sees what he said (user, 2026-10-30)
 const KEPT_LINES = 120; // per session in this phone's history (localStorage is ~5 MB)
 const KEEPALIVE_MAX = 60_000; // a keepalive request body must stay under 64 KB
 const SAVE_EVERY = 60_000; // a running session is saved this often (when something changed), so a killed app loses little
@@ -53,6 +58,30 @@ function takeAccessKey(): string | null {
   if (key) document.querySelector('link[rel=manifest]')?.setAttribute('href', '/manifest.json?k=' + encodeURIComponent(key));
   return key;
 }
+
+/** What is on screen: mistakes gone, and all he says between two remarks of the teacher one running text, however
+ *  many stretches it was cut into (user, 2026-11-01). */
+function shownLines(lines: Line[]): (Line & { parts?: Line[] })[] {
+  const out: (Line & { parts?: Line[] })[] = [];
+  for (const l of lines) {
+    if (l.gone) continue;
+    const last = out[out.length - 1];
+    if (l.who === 'you' && last?.parts) out[out.length - 1] = { ...last, live: l.live, parts: [...last.parts, l] };
+    else out.push(l.who === 'you' ? { ...l, parts: [l] } : l);
+  }
+  return out;
+}
+
+/** «أعد» number id leaves the screen, with the mistake it answered (the stretches before it not read right). */
+function withoutMistake(lines: Line[], id: number): Line[] {
+  const at = lines.findIndex((l) => l.id === id);
+  if (at < 0) return lines;
+  let first = at;
+  while (first > 0 && !lines[first - 1].m && !lines[first - 1].live && (lines[first - 1].who === 'you' || isRedo(lines[first - 1].text))) first--;
+  return lines.map((l, i) => (i >= first && i <= at ? { ...l, gone: true } : l));
+}
+
+const isRedo = (text: string) => normalizeTranscript(text).split(' ').every((w) => w === 'اعد');
 
 let surahNames: SurahMeta[] = [];
 const nameOf = (s: number) => surahNames.find((x) => x.no === s)?.name_ar ?? String(s);
@@ -115,6 +144,8 @@ export const App: React.FC = () => {
   const [note, setNote] = useState('');
   const [lines, setLines] = useState<Line[]>([]);
   const [speaking, setSpeaking] = useState(false);
+  const [link, setLink] = useState<VoiceLink>('quiet');
+  const [heard, setHeard] = useState(0); // each new value is one ripple of the orb
   const [position, setPosition] = useState('');
   const [praying, setPraying] = useState(false);
   const [card, setCard] = useState<ShownCard | null>(null);
@@ -215,6 +246,18 @@ export const App: React.FC = () => {
     return { token: data.token as string, model: data.model as string };
   }
 
+  async function getListenToken() {
+    if (geminiKey) return listenTokenWithOwnKey(geminiKey);
+    const res = await fetch('/api/live/token', {
+      method: 'POST',
+      headers: { ...authed(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ listen: true }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'تعذّر الاستماع');
+    return { token: data.token as string, model: data.model as string };
+  }
+
   async function tafsir(hafsId: number, book?: string) {
     const q = new URLSearchParams({ hafs: String(hafsId), book: book ?? 'ibn_juzay' });
     const res = await fetch('/api/tafsir?' + q, { headers: authed(), signal: AbortSignal.timeout(15000) });
@@ -270,24 +313,30 @@ export const App: React.FC = () => {
     };
   }
 
-  function upsertYou(text: string, done: boolean) {
+  function upsertYou(text: string, done: boolean, m?: string) {
     setLines((prev) => {
       const last = prev[prev.length - 1];
       if (last?.who === 'you' && last.live) {
-        return [...prev.slice(0, -1), { ...last, text, live: !done }];
+        const before = prev[prev.length - 2];
+        // a stretch read right after another one read right: one running text, as in the mushaf
+        if (done && m && before?.who === 'you' && before.m)
+          return [...prev.slice(0, -2), { ...before, text: before.text + ' ' + text, m: before.m + ' ' + m }];
+        return [...prev.slice(0, -1), { ...last, text, live: !done, m }];
       }
       // the stretch's final text arrives after the teacher's reply already closed its line
-      if (done && prev.slice(-3).some((l) => l.who === 'you' && l.text === text)) return prev;
-      return [...prev, { id: ++lineId.current, who: 'you' as const, text, live: !done }];
+      if (done && prev.slice(-3).some((l) => l.who === 'you' && (l.text === text || l.text.endsWith(' ' + text)))) return prev;
+      return [...prev, { id: ++lineId.current, who: 'you' as const, text, live: !done, m }];
     });
   }
 
-  function addTeacher(text: string) {
+  function addTeacher(text: string, m?: string) {
+    const id = ++lineId.current;
     setLines((prev) => {
       // close any live line of mine before the teacher speaks
       const closed = prev.map((l) => (l.live ? { ...l, live: false } : l));
-      return [...closed, { id: ++lineId.current, who: 'teacher' as const, text }];
+      return [...closed, { id, who: 'teacher' as const, text, m }];
     });
+    if (isRedo(text)) setTimeout(() => setLines((prev) => withoutMistake(prev, id)), MISTAKE_MS);
   }
 
   async function start(auto = false) {
@@ -305,9 +354,15 @@ export const App: React.FC = () => {
       where.current = [];
       events.current = [];
       exam.current = { key: '', queue: [], n: 0 };
-      startedAt.current = Date.now();
+      const at = (startedAt.current = Date.now());
+      const onEvent = (what: string) => {
+        const t = Math.round((Date.now() - startedAt.current) / 1000);
+        events.current.push(`${t}s ${what}`);
+        if (events.current.length > 20000) events.current.splice(0, 1000);
+      };
+      const record = accessKey ? (stream: MediaStream) => recordMic(stream, at, accessKey, onEvent) : undefined;
       s = new RecitationSession(
-        { getToken, mushaf, switchRiwaya, fromHafs, pastSessions: () => pastSessionsText(loadHistory().filter((p) => p.at !== startedAt.current)), tafsir, library, nextExamQuestion, resume: lastPlace() },
+        { getToken, getListenToken, mushaf, switchRiwaya, fromHafs, pastSessions: () => pastSessionsText(loadHistory().filter((p) => p.at !== startedAt.current)), tafsir, library, nextExamQuestion, resume: lastPlace(), record },
         {
           onState: (st, detail) => {
             if (session.current !== s) return; // replaced by a newer start(), or already stopped
@@ -323,6 +378,8 @@ export const App: React.FC = () => {
           onTeacher: addTeacher,
           onSpeaking: setSpeaking,
           onLevel: (lvl) => orb.current?.style.setProperty('--level', String(Math.min(1, lvl * 12))),
+          onLink: setLink,
+          onHeard: () => setHeard((n) => n + 1),
           onPosition: setPosition,
           onCard: setCard,
           onPrayer: (on) => {
@@ -330,11 +387,7 @@ export const App: React.FC = () => {
             setVeil(true);
           },
           onMushafAudio: setMushaf,
-          onEvent: (what) => {
-            const t = Math.round((Date.now() - startedAt.current) / 1000);
-            events.current.push(`${t}s ${what}`);
-            if (events.current.length > 20000) events.current.splice(0, 1000);
-          },
+          onEvent,
           onReciting: (w) => {
             where.current = [...where.current.filter((x) => x.s !== w.s), w];
           },
@@ -371,7 +424,7 @@ export const App: React.FC = () => {
 
   /** Saves the session so far under its start time: each save replaces the one before, on this phone and the server. */
   function save(run: Run, rows: Line[], final = false) {
-    const kept = rows.filter((l) => l.text.trim()).map(({ who, text }) => ({ who, text }));
+    const kept = rows.filter((l) => l.text.trim()).map(({ who, text, m }) => (m ? { who, text, m } : { who, text }));
     if (!run.at || !kept.length) return;
     const sig = `${run.at}|${kept.length}|${kept[kept.length - 1].text.length}|${run.events.length}|${run.where.length}|${run.riwaya}`;
     if (sig === savedSig.current && !final) return; // the last save is sent anyway: one before it may yet fail
@@ -414,6 +467,7 @@ export const App: React.FC = () => {
     startedAt.current = 0;
     setState('idle');
     setSpeaking(false);
+    setLink('quiet');
     setPraying(false);
     setMushaf(null);
     setLines((prev) => prev.map((l) => ({ ...l, live: false })));
@@ -423,7 +477,7 @@ export const App: React.FC = () => {
   const status =
     state === 'connecting' ? 'جارٍ الاتصال…'
     : state === 'reconnecting' ? 'لحظة، أستأنف الجلسة…'
-    : state === 'listening' ? (mushaf ? `يُتلى: ${mushaf} — المس للإيقاف` : speaking ? 'الشيخ يتكلّم' : praying ? 'معك في صلاتك' : 'أستمع إليك')
+    : state === 'listening' ? (mushaf ? `يُتلى: ${mushaf} — المس للإيقاف` : link === 'stalled' ? 'الشبكة بطيئة، صوتك لم يصل بعد' : speaking ? 'الشيخ يتكلّم' : praying ? 'معك في صلاتك' : link === 'sending' ? 'صوتك يصلني' : 'أستمع إليك')
     : 'اضغط وتكلّم';
 
   return (
@@ -444,11 +498,12 @@ export const App: React.FC = () => {
       <main className={`stage ${lines.length || card ? 'has-content' : ''}`}>
         <button
           ref={orb}
-          className={`orb ${active ? 'on' : ''} ${speaking || mushaf ? 'speaking' : ''} ${state === 'connecting' || state === 'reconnecting' ? 'busy' : ''}`}
+          className={`orb ${active ? 'on' : ''} ${speaking || mushaf ? 'speaking' : ''} ${state === 'connecting' || state === 'reconnecting' ? 'busy' : ''} ${state === 'listening' && link !== 'quiet' ? link : ''}`}
           onClick={mushaf ? () => session.current?.stopMushaf() : active ? stop : () => start()}
           aria-label={mushaf ? 'إيقاف التلاوة' : active ? 'إنهاء الجلسة' : 'ابدأ'}
         >
           <span className="halo" aria-hidden="true" />
+          {heard > 0 && <span key={heard} className="ripple" aria-hidden="true" />}
           <span className="dot" aria-hidden="true" />
         </button>
         <p className="status">{status}</p>
@@ -469,8 +524,10 @@ export const App: React.FC = () => {
 
         {lines.length > 0 ? (
           <div className="captions" ref={captions} aria-live="polite">
-            {lines.slice(-SHOWN_LINES).map((l) => (
-              <p key={l.id} className={`line ${l.who} ${l.live ? 'live' : ''}`}>{l.text}</p>
+            {shownLines(lines).slice(-SHOWN_LINES).map((l) => (
+              <p key={l.id} className={`line ${l.who} ${l.live ? 'live' : ''} ${!l.parts && l.m ? 'mushaf' : ''}`}>
+                {l.parts ? l.parts.map((p) => <span key={p.id} className={p.m || p.live ? 'bright' : ''}>{(p.m ?? p.text).trim()} </span>) : (l.m ?? l.text)}
+              </p>
             ))}
           </div>
         ) : (
@@ -573,7 +630,7 @@ const History: React.FC<{ items: Past[]; onClose: () => void }> = ({ items, onCl
             {p.riwaya && <span className="past-riwaya" style={{ color: riwayaOf(p.riwaya).color }}> · {riwayaOf(p.riwaya).short}</span>}
           </summary>
           {p.lines.map((l, i) => (
-            <p key={i} className={`line ${l.who}`}>{l.text}</p>
+            <p key={i} className={`line ${l.who} ${l.m ? 'mushaf' : ''}`}>{l.m ?? l.text}</p>
           ))}
         </details>
       ))}

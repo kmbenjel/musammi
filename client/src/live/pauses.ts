@@ -9,8 +9,10 @@ export interface PauseOptions {
   dipMs: number;
 }
 
-// Reciting: cut fast so «أعد» never comes late. Talking: people pause mid-sentence, so wait longer.
-export const DEFAULT_PAUSES: PauseOptions = { pauseMs: 500, maxStretchMs: 3000, dipMs: 180 };
+// Reciting: cut fast so «أعد» never comes late and his words are written soon after he says them (they only come back
+// at a cut). Talking: people pause mid-sentence, so wait longer. Frames are 100 ms: a dip under 200 ms is one quiet
+// frame, which can fall inside a word.
+export const DEFAULT_PAUSES: PauseOptions = { pauseMs: 300, maxStretchMs: 1500, dipMs: 180 };
 export const TALK_PAUSES: PauseOptions = { pauseMs: 1300, maxStretchMs: 20000, dipMs: 500 };
 
 export class PauseSegmenter {

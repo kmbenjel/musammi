@@ -17,6 +17,7 @@ PRIVATE=(
   client/public/tafsir/ibn_juzay
   Dockerfile                      # obsolete: the app runs on Cloudflare
   test/live_check.ts              # development harness tied to the owner's machine and recordings
+  client/public/support.html      # the owner's bank details: served by the app, never in the repository's history
 )
 NAME=${PUBLIC_AUTHOR_NAME:-Khalid Benjelloun}
 EMAIL=${PUBLIC_AUTHOR_EMAIL:-14932601+kmbenjel@users.noreply.github.com}
@@ -32,7 +33,7 @@ tree=$(GIT_INDEX_FILE=$index git write-tree)
 
 fail() { echo "publish_snapshot: $*" >&2; exit 1; }
 leaked=$(git ls-tree -r --name-only "$tree" |
-  grep -E '^(\.env|\.dev\.vars|sessions|archive|briefs|certs)(/|$)|^HANDOFF\.md$|^data/tafsir/|^client/public/tafsir/ibn_juzay/' || true)
+  grep -E '^(\.env|\.dev\.vars|sessions|archive|briefs|certs)(/|$)|^HANDOFF\.md$|^data/tafsir/|^client/public/tafsir/ibn_juzay/|^client/public/support\.html$' || true)
 [ -z "$leaked" ] || fail "private paths in the tree: $leaked"
 if [ -f "$ENV_FILE" ]; then
   for var in GEMINI_API_KEY ACCESS_KEY; do

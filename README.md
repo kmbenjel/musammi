@@ -31,8 +31,11 @@ Warsh by default, and seven other riwayat of the King Fahd Complex mushafs.**
 
 الشرح المفصّل للمبتدئين: **[musammi.benjelloun.dev/guide](https://musammi.benjelloun.dev/guide)**.
 
-> [!IMPORTANT]
-> في الخطة المجانية قد يطّلع مراجعون من Google على ما يصلها (صوت تلاوتك ونصّها) وتستعمله في تحسين منتجاتها، ويشترط Google أن يكون صاحب المفتاح قد بلغ 18 سنة.
+**تنبيه:** في الخطة المجانية قد يطّلع مراجعون من Google على ما يصلها (صوت تلاوتك ونصّها) وتستعمله في تحسين منتجاتها، ويشترط Google أن يكون صاحب المفتاح قد بلغ 18 سنة.
+
+### ادعم المشروع
+
+المُسَمِّع مجاني ومفتوح المصدر، ويطوّره شخص واحد. الهدف الحالي **600 دولار**، وهي ثمن اشتراك Claude Ultra لثلاثة أشهر (200 دولار في الشهر)، يُستعمل في تطوير المشروع وإصلاح أخطائه. إن نفعك المُسَمِّع أو نفع من تعلّمه، فادعمه عبر **[PayPal](https://paypal.me/kmbenjel)** أو **[GitHub Sponsors](https://github.com/sponsors/kmbenjel)**، أو بتحويل بنكي إلى CIH Bank في المغرب: **[معلومات التحويل](https://musammi.benjelloun.dev/support)**.
 
 </div>
 
@@ -56,7 +59,7 @@ Warsh by default, and seven other riwayat of the King Fahd Complex mushafs.**
 | **Prayer mode** | Say «الله أكبر» and the app knows you are praying: the screen goes dark but stays on, the teacher says only «أعِد» on a mistake and gives the fath only when you stall. «السلام عليكم» ends it. The app finds your place in the whole mushaf by itself. |
 | **Exams** | «اختبرني»: questions drawn from the mushaf of your riwaya. Continue from an ayah's start, recite the previous ayah, start of a juz, mutashabihat, and "where is this?". An answer recited from a different place is caught and named. |
 | **Meanings and qiraʾat** | Ask what an ayah means and the teacher answers from Ibn Juzay's tafsir. In the owner's build, other tafsirs and the qiraʾat books (البدور الزاهرة، النشر، الإتقان) are read live from the owner's Shamela library. |
-| **Recorded mushaf** | «أسمعني…» plays murattal recordings from mp3quran.net, cut to the exact ayat when timings exist (e.g. al-Kushi and al-Husary for Warsh, al-Shuraim and al-Minshawi for Hafs). |
+| **Recorded mushaf** | «أسمعني…» plays murattal recordings from mp3quran.net, cut to the exact ayat when timings exist (e.g. al-Kushi and al-Husary for Warsh, al-Shuraim and al-Minshawi for Hafs). Al-Kushi can also start from a phrase, with word timings for all 114 surahs. «حسبك» stops the recording. |
 | **Memory** | Past sessions stay on the phone, and the teacher can go over your earlier mistakes. |
 
 ## How it works
@@ -108,7 +111,7 @@ the token call it:
 | Token minted by | the Worker, with the owner's `GEMINI_API_KEY` | your browser, with your key, straight at Google |
 | Gemini quota | the owner's | yours (free tier works) |
 | Tafsir and library | Ibn Juzay + the laptop's Shamela books | Ibn Juzay |
-| Sessions saved | phone + Cloudflare KV | your phone only |
+| Sessions saved | phone + Cloudflare KV, audio in R2 | your phone only, no audio |
 
 ### One live turn
 
@@ -124,7 +127,7 @@ sequenceDiagram
 
     A->>G: activityStart, then 16 kHz audio
     R->>A: recites
-    Note over A: PauseSegmenter: a 0.5 s pause<br/>(or a 180 ms dip after 3 s of recitation)
+    Note over A: PauseSegmenter: a 0.3 s pause<br/>(or a 180 ms dip after 1.5 s of recitation)
     A->>G: activityEnd
     Note over A: mic audio is held from here on
     G-->>A: inputTranscription
@@ -153,9 +156,9 @@ sequenceDiagram
 <details>
 <summary><b>Recitation is not speech.</b> Voice activity detection, transcription and the model all lean on everyday speech.</summary>
 
-- **Manual turns** ([`pauses.ts`](client/src/live/pauses.ts)): an adaptive noise floor, a turn cut at a 0.5 s pause while
+- **Manual turns** ([`pauses.ts`](client/src/live/pauses.ts)): an adaptive noise floor, a turn cut at a 0.3 s pause while
   reciting and at 1.3 s while talking, so a question is not cut mid-sentence. Long continuous recitation is
-  cut at the next short dip after 3 s, so «أعِد» never comes late.
+  cut at the next short dip after 1.5 s, so «أعِد» never comes late.
 - **Turn-taking that never cancels an answer** ([`session.ts`](client/src/live/session.ts)): the next `activityStart`
   waits for `generationComplete`, or 1.5 s of silence, or a 5 s hard timer. Audio recorded meanwhile is held and
   flushed. The turn is never reopened while a tool runs.
@@ -184,7 +187,8 @@ sequenceDiagram
 - **Echo**: the phone's echo canceller lets the teacher's voice back into the mic. While an answer longer than
   1.5 s plays, the segmenter is deaf to it. Only transcribed words that are not the teacher's own, and not
   «طيب»/«نعم», stop the answer, and the teacher is told how much was heard, so «أكمل» resumes from there.
-- **Reconnects**: a dropped connection resumes with the last session-resumption handle, or falls back to a new
+- **Reconnects**: Google cuts a connection at about 10 minutes, so after 7.5 minutes the session hands over to a new
+  one at a quiet moment. A dropped connection resumes with the last session-resumption handle, or falls back to a new
   context. Each attempt gets 15 s, retries back off exponentially within a 60 s budget, and more than 4 drops in
   2 minutes end the session rather than loop. Up to 75 s of mic audio is held so no recitation is lost. The
   first turn after a reconnect carries a note of where things stood (prayer, exam, place).
@@ -257,11 +261,12 @@ client/                 the app (React 19, Vite): one screen, one ink dot
   src/live/prompt.ts      the teacher's instructions and tools (one source for every token)
   src/live/token.ts       the ephemeral token, minted by the Worker or by the browser
   src/live/riwayat.ts     the eight riwayat; src/live/audio.ts the recorded reciters
+  src/live/stopword.ts    «حسبك» stops a recording; src/live/recorder.ts the owner's session audio
   src/KeySheet.tsx        bring your own key
   public/riwayat/<key>/   KFGQPC text, fonts and derived data; public/guide.html the Arabic guide
-worker/index.ts         Cloudflare Worker: static app, token for the owner, tafsir, library proxy, sessions
+worker/index.ts         Cloudflare Worker: static app, token for the owner, tafsir, library proxy, sessions, audio
 server/                 the owner's laptop: Shamela library API behind the tunnel
-scripts/                data builders (riwayat, tafsir export), Shamela daemon, forced alignment (on hold)
+scripts/                data builders (riwayat, tafsir export), Shamela daemon, forced alignment
 skills/                 the teacher's specification, as a Gemini app skill
 test/                   data checks: node test/verify_warsh_logic.js
 ```
@@ -269,11 +274,11 @@ test/                   data checks: node test/verify_warsh_logic.js
 
 ## Privacy and terms
 
-- **Your voice** goes from your phone to Google's Gemini Live, nowhere else. On the free tier, Google may have
+- **Your voice** goes from your phone to Google's Gemini Live, nowhere else, and is not recorded. On the free tier, Google may have
   human reviewers read what it receives and use it to improve its products; with billing enabled it does not
   ([Gemini API terms](https://ai.google.dev/gemini-api/terms)). Google requires users to be 18 or older.
 - **Your key** stays in your browser and is sent only to Google.
-- **Your sessions** stay on your phone. Only the owner's own sessions (private link) are saved to the owner's Cloudflare KV.
+- **Your sessions** stay on your phone. Only the owner's own sessions (private link) are saved to the owner's Cloudflare account, with their audio.
 
 ## Status and roadmap
 
@@ -281,17 +286,18 @@ The app grew out of its author's own hifz sessions: every session saves an event
 fix. Known gaps and next steps:
 
 - [ ] False «أعِد» on correct Warsh *usul* (tas-hil, taqlil, imala), where transcription hears Hafs
-- [ ] Reconnect before Gemini's 10-minute connection limit instead of after it
 - [ ] Ayah timings for riwayat that have none (Qunbul), by forced alignment ([`scripts/align_timings.py`](scripts/align_timings.py), on hold)
 - [ ] The qiraʾat library for everyone, not only on the owner's laptop
 - [ ] No key at all for ordinary people: a hosted tier, outside Google's free-tier data use
 
 ## Support the project
 
-المُسَمِّع is built by one developer, in the open. If it helps you or someone you teach:
+al-Musammiʿ is built by one developer, in the open. If it helps you or someone you teach:
 
 - **Use it and report**: open an issue with what the teacher got wrong (the time, the surah and ayah, what you recited).
-- **Sponsor**: [GitHub Sponsors](https://github.com/sponsors/kmbenjel) funds the hosted tier and the work on the roadmap.
+- **Sponsor**: the current goal on [GitHub Sponsors](https://github.com/sponsors/kmbenjel) is **$600**, three months of Claude Ultra
+  ($200 a month) for developing the project. Beyond that, sponsorship funds the hosted tier and the work on the roadmap.
+  You can also give through [PayPal](https://paypal.me/kmbenjel) or by bank transfer to CIH Bank in Morocco: [transfer details](https://musammi.benjelloun.dev/support).
 - **Partner or invest**: making it bigger and simpler (a hosted tier with no key, halaqa and teacher dashboards,
   more riwayat audio) needs funding. Reach out through [the author's GitHub profile](https://github.com/kmbenjel).
 

@@ -4,13 +4,15 @@
 // - /api/live/token: the ephemeral Gemini Live token, with the session prompt for the chosen riwaya (the owner's
 //   key; everyone else brings their own key and mints the same token in the browser, see client/src/live/token.ts).
 // - /api/sessions: sessions kept in KV, saved while they run (one key each); the laptop copies them into sessions/ (scripts/pull_sessions.mjs).
+// - /api/audio: the owner's sessions' audio in R2, 15 s slices under the session's time (client/src/live/recorder.ts).
 // - /api/tafsir, /api/library: Ibn Juzay from the static files, open to everyone; everything else from the laptop's
 //   local Shamela (LIBRARY_ORIGIN, through the tunnel) when the laptop is on, for the owner only.
-import { mintToken } from '../client/src/live/token';
+import { mintListenToken, mintToken } from '../client/src/live/token';
 
 interface Env {
   ASSETS: { fetch: (req: Request | string) => Promise<Response> };
   SESSIONS: KVNamespace;
+  AUDIO?: R2Bucket; // without it the app records nothing
   GEMINI_API_KEY: string;
   ACCESS_KEY: string;
   LIVE_MODEL?: string;
@@ -34,9 +36,9 @@ function keyOk(req: Request, env: Env): boolean {
 }
 
 async function token(req: Request, env: Env): Promise<Response> {
-  const body = (await req.json().catch(() => ({}))) as { handle?: string; riwaya?: string };
+  const body = (await req.json().catch(() => ({}))) as { handle?: string; riwaya?: string; listen?: boolean };
   try {
-    const t = await mintToken(env.GEMINI_API_KEY, { riwaya: body.riwaya, handle: body.handle, model: env.LIVE_MODEL });
+    const t = body.listen ? await mintListenToken(env.GEMINI_API_KEY) : await mintToken(env.GEMINI_API_KEY, { riwaya: body.riwaya, handle: body.handle, model: env.LIVE_MODEL });
     return json({ ok: true, token: t.token, model: t.model });
   } catch (e) {
     const msg = String((e as Error)?.message || e);
@@ -130,6 +132,39 @@ async function sessions(req: Request, env: Env, url: URL): Promise<Response> {
   return json({ ok: true, now, items });
 }
 
+const AUDIO_MAX = 2_000_000; // a 15 s slice is about 45 KB
+
+async function audio(req: Request, env: Env, url: URL): Promise<Response> {
+  if (!env.AUDIO) return json({ ok: false }, 404);
+  if (req.method === 'POST') {
+    const at = new Date(Number(url.searchParams.get('at')));
+    const seq = Number(url.searchParams.get('seq'));
+    if (Number.isNaN(at.getTime()) || !Number.isInteger(seq) || seq < 0 || seq > 999_999) return json({ ok: false }, 400);
+    const body = await req.arrayBuffer();
+    if (body.byteLength > AUDIO_MAX) return json({ ok: false }, 413);
+    const type = req.headers.get('Content-Type') || '';
+    const name = `${at.toISOString()}/${String(seq).padStart(6, '0')}.${type.includes('mp4') ? 'm4a' : 'webm'}`;
+    await env.AUDIO.put(name, body, { httpMetadata: { contentType: type } });
+    return json({ ok: true });
+  }
+  // GET ?key=<name>: one slice. GET ?since=<ms, server time>: the names written since, as /api/sessions does.
+  const name = url.searchParams.get('key');
+  if (name) {
+    const o = await env.AUDIO.get(name);
+    return o ? new Response(o.body, { headers: { 'Content-Type': o.httpMetadata?.contentType || 'application/octet-stream' } }) : json({ ok: false }, 404);
+  }
+  const since = Number(url.searchParams.get('since')) || 0;
+  const now = Date.now();
+  const keys: string[] = [];
+  let cursor: string | undefined;
+  do {
+    const list = await env.AUDIO.list({ cursor });
+    for (const o of list.objects) if (o.uploaded.getTime() > since) keys.push(o.key);
+    cursor = list.truncated ? list.cursor : undefined;
+  } while (cursor);
+  return json({ ok: true, now, keys });
+}
+
 async function manifest(env: Env, url: URL): Promise<Response> {
   const m = await (await env.ASSETS.fetch(new URL('/manifest.json', url))).json<Record<string, unknown>>();
   const k = url.searchParams.get('k') || '';
@@ -149,6 +184,7 @@ export default {
     if (url.pathname === '/api/live/token' && req.method === 'POST') return token(req, env);
     if (url.pathname === '/api/library') return viaLaptop(req, env, url);
     if (url.pathname === '/api/sessions') return sessions(req, env, url);
+    if (url.pathname === '/api/audio') return audio(req, env, url);
     return json({ ok: false, error: 'Endpoint not found' }, 404);
   },
 };
