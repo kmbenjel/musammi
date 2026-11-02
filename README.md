@@ -35,7 +35,7 @@ Warsh by default, and seven other riwayat of the King Fahd Complex mushafs.**
 
 ### ادعم المشروع
 
-المُسَمِّع مجاني ومفتوح المصدر، ويطوّره شخص واحد. الهدف الحالي **720 دولاراً**، وهي تكلفة اشتراك Claude Ultra لثلاثة أشهر مع الضرائب، يُستعمل في تطوير المشروع وإصلاح أخطائه، ومشاريع أخرى ذات إفادة خاصّة بالمطوّر أو عامّة. إن نفعك المُسَمِّع أو نفع من تعلّمه، فادعمه عبر **[PayPal](https://paypal.me/kmbenjel)** أو **[GitHub Sponsors](https://github.com/sponsors/kmbenjel)**، أو بتحويل بنكي إلى CIH Bank في المغرب: **[معلومات التحويل](https://musammi.benjelloun.dev/support)**.
+المُسَمِّع مجاني ومفتوح المصدر، ويطوّره شخص واحد. الهدف الحالي **720 دولاراً**، تكلفة اشتراك Claude Ultra لثلاثة أشهر مع الضرائب، يُستعمل في تطوير المُسَمِّع وإصلاح أخطائه، وفي مشاريع أخرى نافعة، خاصّة بالمطوّر أو عامّة. إن نفعك المُسَمِّع أو نفع من تعلّمه، فادعمه عبر **[PayPal](https://paypal.me/kmbenjel)** أو **[GitHub Sponsors](https://github.com/sponsors/kmbenjel)**، أو بتحويل بنكي إلى CIH Bank في المغرب: **[معلومات التحويل](https://musammi.benjelloun.dev/support)**.
 
 </div>
 
