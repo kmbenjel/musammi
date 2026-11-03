@@ -9,7 +9,8 @@ export type PageLine = Seg[] | { h: number } | { b: 1 } | null;
 export interface MushafLayout {
   lines: number;
   width: number; // a full line, in em of the mushaf font
-  pages: { l: PageLine[]; f?: number; c?: number[] }[]; // f: the page's font scale; c: its short lines (centred)
+  // f: the page's font scale; c: its short lines (centred); k: kashida, n tatweels into word k of ayah id at char `at`
+  pages: { l: PageLine[]; f?: number; c?: number[]; k?: [id: number, k: number, at: number, n: number][] }[];
 }
 
 export const PAGES = 604;
@@ -53,6 +54,11 @@ export function pageIndex(layout: MushafLayout): Map<string, number> {
       if (Array.isArray(line)) for (const [id, k0, k1] of line) for (let k = k0; k <= k1; k++) at.set(wordKey(id, k), i + 1);
   });
   return at;
+}
+
+/** Each page's words in reading order (wordKey). */
+export function pageWords(layout: MushafLayout): string[][] {
+  return layout.pages.map((p) => p.l.flatMap((line) => (Array.isArray(line) ? line.flatMap(([id, k0, k1]) => Array.from({ length: k1 - k0 + 1 }, (_, i) => wordKey(id, k0 + i))) : [])));
 }
 
 /** The first ayah that starts on the page (or the one that runs onto it). */

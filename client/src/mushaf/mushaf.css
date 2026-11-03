@@ -177,6 +177,17 @@
   }
 }
 
+/* the word just recited right */
+.w.fresh,
+.is-hidden .w.fresh {
+  color: #8fd19e;
+}
+
+/* where a «أعد» fell earlier in the session: a faint patch, hidden or not */
+.w.missed {
+  background: color-mix(in srgb, #e0675f 14%, transparent);
+}
+
 /* a «أعد»: where it fell */
 .w.miss {
   background: color-mix(in srgb, #e0675f 30%, transparent);

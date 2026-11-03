@@ -8,7 +8,7 @@ import { listenTokenWithOwnKey, loadGeminiKey, saveGeminiKey, tokenWithOwnKey } 
 import { KeySheet } from './KeySheet';
 import { normalizeTranscript } from './utils/arabic';
 import { MushafScreen } from './mushaf/MushafScreen';
-import { firstAyahOn, loadLayout, pageIndex, wordKey, type MushafLayout } from './mushaf/layout';
+import { firstAyahOn, loadLayout, pageIndex, pageWords, wordKey, type MushafLayout } from './mushaf/layout';
 import type { MushafMarks } from './mushaf/MushafView';
 import type { CompactAyah } from './services/quranData';
 
@@ -34,6 +34,7 @@ const PAGE_KEY = 'hifz_warsh_page';
 const HIDDEN_KEY = 'hifz_warsh_hidden';
 const OPEN_PAGE_MS = 1200; // a page he turned to and stayed on is where he will recite (not each page swiped past)
 const MISS_MS = 4000;
+const FRESH_MS = 1200; // a word just written keeps the ink colour this long
 
 const store = {
   get(key: string) {
@@ -185,6 +186,9 @@ export const App: React.FC = () => {
   const [hidden, setHidden] = useState(() => store.get(HIDDEN_KEY) === '1');
   const [written, setWritten] = useState<Set<string>>(() => new Set());
   const [miss, setMiss] = useState<string | null>(null);
+  const [missed, setMissed] = useState<Set<string>>(() => new Set());
+  const [fresh, setFresh] = useState<Set<string>>(() => new Set());
+  const freshTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [playWord, setPlayWord] = useState<string | null>(null);
   const [teacherNow, setTeacherNow] = useState<{ id: number; text: string } | null>(null);
   const hiddenBefore = useRef<boolean | null>(null); // a recording shows the page; its end hides it again
@@ -223,9 +227,10 @@ export const App: React.FC = () => {
       .catch(() => setNote('تعذّر تحميل بيانات المصحف'));
   }, []);
   const pageOf = useMemo(() => (layout ? pageIndex(layout) : null), [layout]);
+  const wordsOn = useMemo(() => (layout ? pageWords(layout) : null), [layout]);
   // what the session's handlers read: they were made when it started
-  const now = useRef({ pageOf, hidden });
-  now.current = { pageOf, hidden };
+  const now = useRef({ pageOf, wordsOn, hidden });
+  now.current = { pageOf, wordsOn, hidden };
   useEffect(() => store.set(PAGE_KEY, String(page)), [page]);
   useEffect(() => store.set(HIDDEN_KEY, hidden ? '1' : null), [hidden]);
 
@@ -392,18 +397,31 @@ export const App: React.FC = () => {
   // ── mushaf mode ──
   const keyOf = (w: WordAt) => wordKey(w.id, w.k);
 
+  /** Words recited right are written. The first ones on a page he starts in the middle of bring the page before
+   *  them with them: he is past it (the user's recording of the wanted behaviour, 2026-11-03). */
   function onWords(words: WordAt[], undo: boolean) {
+    const keys = words.map(keyOf);
     setWritten((prev) => {
       const next = new Set(prev);
-      for (const w of words) undo ? next.delete(keyOf(w)) : next.add(keyOf(w));
+      for (const k of keys) undo ? next.delete(k) : next.add(k);
+      const p = !undo && keys[0] ? now.current.pageOf?.get(keys[0]) : undefined;
+      const list = p ? now.current.wordsOn?.[p - 1] : undefined;
+      const at = list ? list.indexOf(keys[0]) : -1;
+      if (list && at > 0 && !list.slice(0, at).some((k) => prev.has(k))) list.slice(0, at).forEach((k) => next.add(k));
       return next;
     });
+    if (undo) return;
+    clearTimeout(freshTimer.current);
+    setFresh(new Set(keys));
+    freshTimer.current = setTimeout(() => setFresh(new Set()), FRESH_MS);
   }
 
   function onMiss(at: WordAt | null) {
     clearTimeout(missTimer.current);
     setMiss(at && keyOf(at));
-    if (at) missTimer.current = setTimeout(() => setMiss(null), MISS_MS);
+    if (!at) return;
+    missTimer.current = setTimeout(() => setMiss(null), MISS_MS);
+    setMissed((prev) => new Set(prev).add(keyOf(at)));
   }
 
   /** The recitation or a recording moved on: the page follows. */
@@ -448,6 +466,8 @@ export const App: React.FC = () => {
     setPosition('');
     setWritten(new Set());
     setMiss(null);
+    setMissed(new Set());
+    setFresh(new Set());
     setTeacherNow(null);
     let s: RecitationSession | null = null;
     try {
@@ -591,7 +611,7 @@ export const App: React.FC = () => {
     : 'اضغط وتكلّم';
 
   if (MUSHAF) {
-    const marks: MushafMarks = { on: written, miss, play: playWord };
+    const marks: MushafMarks = { on: written, fresh, missed, miss, play: playWord };
     return (
       <MushafScreen
         layout={layout}

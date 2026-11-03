@@ -4,8 +4,10 @@ Warsh font: client/public/riwayat/warsh/mushaf.json, for the mushaf mode (client
 
 The KFGQPC data gives each ayah's page and first and last line, not where its words break inside. So the words of
 an ayah that spans lines are spread over them here: each word measured in the font (HarfBuzz), and the breaks
-chosen so that every line comes as close as possible to one common width, the width of a full line. The app then
-sizes the font so that a full line fills the page, and spaces the words of each line to its edges.
+chosen so that every line comes as close as possible to one common width, the width of a full line. Then each line
+is brought to that width as print does it, by kashida: tatweels shared out evenly among its words (each at its
+word's last joining point), measured again. The app sizes the font so that a full line fills the page, and spaces
+the words of each line to its edges for what is left.
 
   uv run --with uharfbuzz --with fonttools --with brotli scripts/build_mushaf_layout.py
 
@@ -16,10 +18,12 @@ Output: {"lines": 15, "width": W, "pages": [{"l": [line, ... 15], "f": scale?}, 
   [[ayah id, k0, k1], …]  printed words k0..k1 of each ayah on it (k: tokens with letters, as the tracker and the
                           word timings count them); the ayah's number follows its last word.
 "f": the page's font is that much smaller: one of its lines is longer than W in this font.
-"c": its lines far shorter than W (less than SHORT of it): set in the middle at the usual spacing, not spread to the
-     edges (print stretches the letters there, which this font cannot).
+"k": the kashida, [ayah id, k, at, n]: n tatweels go into printed word k at character `at` (the word as printed,
+     «۞ » before it if it has one).
+"c": lines kashida cannot bring to SHORT of W (few words, few joining letters): set in the middle, unstretched,
+     at the usual spacing, as print sets the last line of a surah.
 """
-import io, json, os, re, statistics
+import io, json, os, re, statistics, unicodedata
 import uharfbuzz as hb
 from fontTools.ttLib import TTFont
 
@@ -31,7 +35,26 @@ LETTERS = re.compile('[ء-يٱ-ۓ]')
 LINES = 15
 MARK_EM = {1: 1.05, 2: 1.15, 3: 1.4}  # the ayah number's disc (MushafPage.css .num), in em, by digits
 PERCENTILE = 0.985  # W: a full line; the few longer ones shrink their page (f)
-SHORT = 0.62
+SHORT = 0.85  # a line kashida cannot bring this close to W is centred, unstretched
+KASHIDA = '\u0640'
+MAX_KASHIDA = 8  # tatweels in one word
+DUAL = set('بتثجحخسشصضطظعغفقكلمنهيىئ\u0640')  # letters that join the letter after them
+JOINS = DUAL | set('اأإآٱدذرزوؤةے')  # letters that join the letter before them
+ALEFS = set('اأإآٱ')
+
+
+def kashida_at(word):
+    """Where a tatweel goes in this word: before the letter after its last joining point (after the marks of the letter
+    before), not inside lam-alif nor the name of Allah. None: nowhere."""
+    bases = [(i, ch) for i, ch in enumerate(word) if unicodedata.category(ch) not in ('Mn', 'Me')]
+    letters = ''.join(ch for _, ch in bases)
+    allah = letters.find('لله')
+    best = None
+    for n, ((i, a), (j, b)) in enumerate(zip(bases, bases[1:])):
+        if a not in DUAL or b not in JOINS or (a == 'ل' and b in ALEFS): continue
+        if allah >= 0 and allah <= n <= allah + 1: continue
+        best = j
+    return best
 
 
 def font():
@@ -135,6 +158,38 @@ def main():
         target = ws[int(len(ws) * PERCENTILE)]
         print(f'W={target:.2f}em  median fill {statistics.median(ws) / target:.3f}  p5 {ws[int(len(ws) * .05)] / target:.3f}')
 
+    tw = measure(f, upem, KASHIDA)
+    fills = []
+
+    def stretch(a, b, target):
+        """Kashida for words a..b-1: as many tatweels as the line lacks, one word after the other, then fewer while it
+        is too long (a tatweel can undo a ligature, so each word is measured again)."""
+        words = [(w, ayat[w[0]][1][w[1]]) for w in W_[a:b]]
+        at = {i: kashida_at(t) for i, (_, t) in enumerate(words)}
+        cand = [i for i in at if at[i] is not None]
+        n = dict.fromkeys(cand, 0)
+        budget = int((target - width(a, b)) / tw)
+        while budget > 0 and cand and any(n[i] < MAX_KASHIDA for i in cand):
+            for i in cand:
+                if budget and n[i] < MAX_KASHIDA:
+                    n[i] += 1
+                    budget -= 1
+        base = width(a, b)
+        delta = {}
+        def grown(i):
+            t = words[i][1]
+            return measure(f, upem, t[:at[i]] + KASHIDA * n[i] + t[at[i]:]) - measure(f, upem, t)
+        for i in cand:
+            if n[i]: delta[i] = grown(i)
+        while base + sum(delta.values()) > target and delta:
+            i = max(delta, key=lambda x: n[x])
+            n[i] -= 1
+            if n[i]: delta[i] = grown(i)
+            else: del delta[i]
+        got = base + sum(delta.values())
+        fills.append(got / target)
+        return [[ayat[words[i][0][0]][0], words[i][0][1], at[i], n[i]] for i in delta], got
+
     headers = {}
     for i, (aid, *_r, g0, g1) in enumerate(ayat):
         s, a = d[i]['sura_no'], d[i]['aya_no']
@@ -143,7 +198,7 @@ def main():
             else: headers[g0 - 2], headers[g0 - 1] = {'h': s}, {'b': 1}
     pages = []
     for p in range(604):
-        out, longest, short = [], 0, []
+        out, longest, short, kash = [], 0, [], []
         for ln in range(LINES):
             g = p * LINES + ln
             if g in lines:
@@ -155,16 +210,22 @@ def main():
                     else: segs.append([aid, w[1], w[1]])
                 out.append(segs)
                 longest = max(longest, width(a, b))
-                if width(a, b) < target * SHORT: short.append(ln)
+                got = width(a, b)
+                if p >= 2 and got < target:
+                    add, got = stretch(a, b, target)
+                    if got >= target * SHORT: kash += add
+                if got < target * SHORT: short.append(ln)
             else:
                 out.append(headers.get(g))
         page = {'l': out}
         if longest > target and p >= 2: page['f'] = round(target / longest, 3)
         if short and p >= 2: page['c'] = short
+        if kash: page['k'] = kash
         pages.append(page)
     shrunk = [p for p in pages if 'f' in p]
     print(f'{len(shrunk)} pages shrunk, smallest f={min((p["f"] for p in shrunk), default=1)}; '
-          f'{sum(len(p.get("c", [])) for p in pages)} short lines centred')
+          f'{sum(len(p.get("c", [])) for p in pages)} short lines centred; {sum(len(p.get("k", [])) for p in pages)} words stretched; '
+          f'lines after kashida: median fill {statistics.median(fills):.3f}, p5 {sorted(fills)[len(fills) // 20]:.3f}')
     json.dump({'lines': LINES, 'width': round(target, 3), 'pages': pages}, open(OUT, 'w'), ensure_ascii=False, separators=(',', ':'))
     print('wrote', OUT, os.path.getsize(OUT))
 

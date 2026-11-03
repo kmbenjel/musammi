@@ -89,6 +89,21 @@ const heard = (x: any, from: number, to: number) => n(x.c).split(' ').slice(from
 }
 {
   const { s, log } = session();
+  const x = ayah(67, 3);
+  s.openAt(x.id, 562);
+  // two stretches, the word between them heard wrong at the cut: written once the second passes
+  const ws = n(x.c).split(' ');
+  s.handle({ serverContent: { inputTranscription: { text: ws.slice(0, 4).join(' ') + ' . ' } } });
+  s.closing = true;
+  s.handle({ serverContent: { generationComplete: true } });
+  s.handle({ serverContent: { inputTranscription: { text: ['وما', ...ws.slice(5, 9)].join(' ') + ' . ' } } });
+  s.closing = true;
+  s.handle({ serverContent: { generationComplete: true } });
+  const written = new Set(log.filter((l) => !l.undo).flatMap((l) => l.words).map((w) => w.k));
+  check('a word lost between two stretches that passed is written', written.has(4), [...written]);
+}
+{
+  const { s, log } = session();
   const x = ayah(38, 1);
   s.openAt(x.id, 453);
   s.handle({ serverContent: { inputTranscription: { text: 'ص ' + heard(x, 1, 6) + ' . ' } } });

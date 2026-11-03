@@ -73,7 +73,7 @@ Warsh by default, and seven other riwayat of the King Fahd Complex mushafs.**
 </p>
 
 The mushaf page instead of the conversation, Warsh only: the Madina mushaf (King Fahd Complex, 1441) page by page,
-15 justified lines in the app's Warsh font, ayah numbers in plain digits. Hide the writing and the app writes each
+15 lines in the app's Warsh font, justified with even kashida as in print, ayah numbers in plain digits. Hide the writing and the app writes each
 word you recite right in its place; «أعِد» takes the stretch back. There is never a fath, since the page can be
 shown at any time (the eye, or press and hold). The page follows you: turn to one and recite from it, recite from
 elsewhere and it moves there, ask for al-Kushi and it turns to the page and follows him word by word. Prayer mode,

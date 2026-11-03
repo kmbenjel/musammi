@@ -290,6 +290,7 @@ export class RecitationSession {
   private hitsSeen = 0;
   private hitsOf: Ayah[] | null = null;
   private stretchHits: number[] = [];
+  private lastJudged = -1; // the last word of the last stretch that passed
   private standing = ''; // what he asked for every time, this session
 
   constructor(private deps: SessionDeps, private ev: SessionEvents) {}
@@ -1032,6 +1033,7 @@ export class RecitationSession {
       this.hitsOf = t.ayat;
       this.hitsSeen = 0;
       this.stretchHits = [];
+      this.lastJudged = -1;
     }
     const fresh = t.hits.slice(this.hitsSeen);
     this.hitsSeen = t.hits.length;
@@ -1043,14 +1045,18 @@ export class RecitationSession {
     if (moved && !this.exam && !this.mushafAudio && next) this.ev.onPlace?.(next);
   }
 
-  /** The stretch passed with no «أعد»: words between two it matched were said too (the transcript drops some). */
+  /** The stretch passed with no «أعد»: words between two it matched were said too (the transcript drops some), and
+   *  so were one or two between it and the stretch before it (one heard wrong at the cut: «ليحكم» as «وما»). */
   private judged() {
     const hits = this.stretchHits;
     this.stretchHits = [];
-    if (!this.ev.onWords || hits.length < 2 || this.tracker.ayat !== this.hitsOf) return;
+    if (!this.ev.onWords || !hits.length || this.tracker.ayat !== this.hitsOf) return;
     let lo = Math.min(...hits);
     const hi = Math.max(...hits);
+    const before = this.lastJudged;
+    this.lastJudged = Math.max(before, hi);
     if (hi - lo > hits.length + 6) return; // a jump, not a few dropped words
+    if (before >= 0 && lo - before >= 2 && lo - before <= 3) lo = before + 1;
     while (lo > 0 && this.tracker.tooShort(lo - 1)) lo--; // «صٓۖ وَالْقُرْءَانِ»: the letter before
     const got = new Set(hits);
     const gaps: WordAt[] = [];
@@ -1069,6 +1075,7 @@ export class RecitationSession {
       this.ev.onWords(this.stretchHits.map((k) => t.printedAt(k)).filter((x): x is WordAt => !!x), true);
     const at = this.stretchHits.length ? Math.min(...this.stretchHits) : t.at();
     this.stretchHits = [];
+    this.lastJudged = -1; // he repeats: what he skipped then is not «said»
     this.ev.onMiss?.(t.printedAt(at) ?? null);
   }
 

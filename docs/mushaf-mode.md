@@ -5,11 +5,11 @@
 > It is not affiliated with Tarteel AI or any other app.
 
 <p align="center">
-  <img src="mushaf.png" width="250" alt="Page 262, the opening of al-Hijr, as the Madina mushaf sets it, ayah numbers in plain digits">
+  <img src="mushaf.png" width="250" alt="Page 300, al-Kahf, as the Madina mushaf sets it, lines filled by kashida, ayah numbers in plain digits">
   &nbsp;
-  <img src="mushaf-hidden.png" width="250" alt="Page 356 hidden: only the words recited right so far are written, in their place">
+  <img src="mushaf-hidden.png" width="250" alt="Page 356 hidden: the page up to where he started, then the words recited right, in their place">
   &nbsp;
-  <img src="mushaf-604.png" width="250" alt="Page 604: three surah frames, short lines centred">
+  <img src="mushaf-604.png" width="250" alt="Page 604: three surah frames">
 </p>
 
 <div dir="rtl">
@@ -18,8 +18,9 @@
 
 بدل شاشة الكلام، **صفحة المصحف** أمامك: مصحف المدينة (مجمع الملك فهد، ١٤٤١)، رواية ورش عن نافع من طريق الأزرق، بخط ورش الذي في المُسَمِّع، خمسة عشر سطراً مستوية في كل صفحة، وأرقام الآيات بالأرقام العادية (1، 2، 3).
 
-- **أظهِر الكتابة أو أخفِها** بزرّ العين. إذا أخفيتَها كتب التطبيق ما تقرؤه صواباً في موضعه من الصفحة، كلمةً كلمة.
-- **«أعِد»** عند الخطأ كما في المُسَمِّع: يمحو التطبيق ما كتبه من ذلك المقطع، ويعلّم موضع الخطأ بالأحمر لحظات.
+- **أظهِر الكتابة أو أخفِها** بزرّ العين. إذا أخفيتَها كتب التطبيق ما تقرؤه صواباً في موضعه من الصفحة، كلمةً كلمة، وآخر كلمة بالأخضر لحظة. وإذا بدأتَ من وسط الصفحة ظهر ما قبل موضعك منها.
+- **«أعِد»** عند الخطأ كما في المُسَمِّع: يمحو التطبيق ما كتبه من ذلك المقطع، ويعلّم موضع الخطأ بالأحمر، ويبقى أثره خفيفاً في الصفحة إلى آخر الجلسة.
+- **الأسطر مستوية بالكشيدة** كما في المطبوع، موزّعة على كلمات السطر بالتساوي.
 - **لا فتح أبداً**، لا عند السكوت ولا عند الطلب: الصفحة بين يديك، أظهِرها بالعين، أو اضغط عليها مطوّلاً فتظهر ما دمتَ ضاغطاً.
 - **قلّب إلى صفحة** فأنت تقرأ منها. **واقرأ من موضع آخر قاصداً** فتنتقل الصفحة إليه، وتنقلب وحدها حين تتمّ آخر سطر فيها.
 - **«أسمعني…»** يتلو العيون الكوشي، فتنتقل الصفحة إلى موضعه ظاهرةً، وتُعلَّم الكلمة التي يتلوها، ثم تعود الكتابة كما كانت.
@@ -67,15 +68,20 @@ again.
    ayah and the start of the next. Among the layouts that keep to them, it takes the one whose lines come closest to
    a common width **W**, the width of a full line (the 98.5th percentile of the line widths).
 3. Surah frames and the basmala fill the two lines before each surah's first ayah (one line for at-Tawba).
-4. It writes `client/public/riwayat/warsh/mushaf.json` (177 KB): for each page, its 15 lines as
-   `[ayah id, first word, last word]` segments, plus `f`, a font scale for the 41 pages that hold a line longer
-   than W (smallest 0.85), and `c`, the 92 lines shorter than 62 % of W.
+4. **Kashida.** Each line is then brought to W as print does it, by stretching letters: the tatweels it lacks are
+   shared out evenly among its words, one word after the other (at most 8 in a word), each at the word's last
+   joining point (after the marks of the letter before it; never inside lam-alif or the name of Allah). Every
+   stretched word is measured again, since a tatweel can undo a ligature, and the line is trimmed if it overshoots.
+   Before kashida the median line fills 80 % of W; after it, 99.2 % (5th percentile 98.5 %). The four lines that
+   cannot reach 85 % (few words, few joining letters: the end of a surah) stay unstretched and centred.
+5. It writes `client/public/riwayat/warsh/mushaf.json` (980 KB, about a quarter of that gzipped): for each page, its
+   15 lines as `[ayah id, first word, last word]` segments; `k`, the kashida as `[ayah id, word, character, count]`
+   (60,454 words); `f`, a font scale for the 41 pages that hold a line longer than W (smallest 0.85); and `c`, the
+   centred lines.
 
 In the browser ([`MushafView.tsx`](../client/src/mushaf/MushafView.tsx)) the font is sized so that W fills the
-page's width (and 15 lines its height), and each line spreads its words to both edges, as print does. The lines in
-`c`, such as the end of a surah, stay in the middle at the usual spacing: print stretches the letters there
-(kashida), which this font cannot do. Pages 1 and 2 are centred, as in print. The median line fills 80 % of W
-before spreading.
+page's width (and 15 lines its height), the tatweels are put into the words, and each line spreads its words to both
+edges for the little that is left. Pages 1 and 2 are centred, as in print.
 
 ```sh
 uv run --with uharfbuzz --with fonttools --with brotli scripts/build_mushaf_layout.py
@@ -92,11 +98,19 @@ The session ([`session.ts`](../client/src/live/session.ts), «mushaf mode» sect
 shows:
 
 - `reveal()` after each transcript: the new hits are written at once (`onWords`), and the page follows the next word
-  to recite (`onPlace`), so it turns when a page is finished.
-- `judged()` when the turn reopens with no «أعِد»: the words between two hits of the stretch are written too. The
-  transcript drops words, and one-letter openings («صٓ», «قٓ», «نٓ») are never matched.
+  to recite (`onPlace`), so it turns when a page is finished. The word just written stays green for 1.2 s.
+- The first words written on a page he started in the middle of bring the rest of the page before them: he is
+  past it (App.tsx `onWords`).
+- `judged()` when the turn reopens with no «أعِد»: the words between two hits of the stretch are written too, and one
+  or two between it and the stretch before it. The transcript drops words, mishears one at a cut («ليحكم» as «وما»),
+  and never matches one-letter openings («صٓ», «قٓ», «نٓ»).
 - `missed()` when the teacher's «أعِد» is played (not when the breath guard mutes it): that stretch's words are taken
-  back and its first word is marked (`onMiss`, red for 4 s). He repeats, and they are written again.
+  back and its first word is marked (`onMiss`, red for 4 s, then a faint patch for the rest of the session, hidden or
+  not). He repeats, and they are written again.
+
+These follow a screen recording of the behaviour the owner wanted (Tarteel, Hafs, Maryam 49–50): the page before
+the starting point appears once the place is found, the newest word is green, and the places of mistakes stay
+marked on the page.
 
 ### 3. Following the reciter
 
@@ -157,7 +171,8 @@ npx wrangler secret put GUEST_KEYS --env mushaf     # or scripts/guest_keys.mjs
 - every printed word of all 6,214 ayat is reached when the ayah is recited as printed;
 - the layout places every printed word once, in order;
 - through the session: a stretch writes its words and the page follows, «أعِد» takes them back and marks the place,
-  a dropped word is written once the stretch passes, «صٓ» is written after the stretch that follows it, «افتح» asks
+  a dropped word is written once the stretch passes, and so is one lost between two stretches; «صٓ» is written after
+  the stretch that follows it, «افتح» asks
   no fath, and turning to a page sends its text to the teacher.
 
 The existing tracker, breath guard, echo guard, phrase and stop word tests pass unchanged. End to end, a real
@@ -167,8 +182,9 @@ on a «أعِد», and wrote it again on the repetition.
 
 ## Known limits
 
-- **Spacing.** Without kashida, a line far shorter than W either shows wide gaps or is centred. The threshold
-  (62 %) is a judgment call; kashida insertion (tatweel between joined letters) is the way to a printed look.
+- **Kashida is placed by rule, not by a calligrapher.** One point per word (its last joining point), the same
+  length for every word of a line; print chooses where and how long each stretch is. A few short lines (page 604)
+  come out with long stretches.
 - **Mistakes are marked by stretch, not by word.** The model says «أعِد» for a stretch; it does not say which word
   was wrong, so the first word of the stretch is marked.
 - **Words the transcript turns into Hafs** (`مالك` for `مَلِكِ`) are matched as the word, as in al-Musammiʿ: they

@@ -12,7 +12,9 @@ const PEEK_MS = 350;
 
 export interface MushafMarks {
   on: Set<string>; // recited right (wordKey)
-  miss: string | null; // the word where a «أعد» fell
+  fresh: Set<string>; // just written: in the ink colour for a moment
+  missed: Set<string>; // where a «أعد» fell this session (stays marked, faintly)
+  miss: string | null; // where the last «أعد» fell
   play: string | null; // the word the recording is at
 }
 
@@ -120,6 +122,7 @@ const Page: React.FC<{ n: number; layout: MushafLayout; quran: Map<number, Compa
     const surah = surahs.find((s) => s.no === ayah?.s);
     const opening = n <= 2; // al-Fatiha and the start of al-Baqara: centred, as in print
     const size = font * (p.f ?? 1);
+    const kashida = useMemo(() => new Map((p.k ?? []).map(([id, k, at, n]) => [wordKey(id, k), [at, n] as const])), [p]);
     return (
       <div className={`mpage-in ${opening ? 'opening' : ''}`} style={{ '--mf': `${size}px`, '--mw': `${font * layout.width}px` } as React.CSSProperties}>
         <header className="mhead">
@@ -128,7 +131,7 @@ const Page: React.FC<{ n: number; layout: MushafLayout; quran: Map<number, Compa
         </header>
         <div className="mlines">
           {p.l.map((line, i) => (
-            <Line key={i} line={line} short={!!p.c?.includes(i)} quran={quran} surahs={surahs} marks={marks} />
+            <Line key={i} line={line} short={!!p.c?.includes(i)} kashida={kashida} quran={quran} surahs={surahs} marks={marks} />
           ))}
         </div>
         <footer className="mfoot">{n}</footer>
@@ -137,7 +140,9 @@ const Page: React.FC<{ n: number; layout: MushafLayout; quran: Map<number, Compa
   },
 );
 
-const Line: React.FC<{ line: PageLine; short: boolean; quran: Map<number, CompactAyah>; surahs: SurahMeta[]; marks: MushafMarks }> = ({ line, short, quran, surahs, marks }) => {
+type Kashida = Map<string, readonly [at: number, n: number]>;
+
+const Line: React.FC<{ line: PageLine; short: boolean; kashida: Kashida; quran: Map<number, CompactAyah>; surahs: SurahMeta[]; marks: MushafMarks }> = ({ line, short, kashida, quran, surahs, marks }) => {
   if (!line) return <div className="ml empty" />;
   if (!Array.isArray(line)) {
     if ('h' in line)
@@ -155,8 +160,10 @@ const Line: React.FC<{ line: PageLine; short: boolean; quran: Map<number, Compac
     const words = printedWords(x);
     for (let k = k0; k <= k1; k++) {
       const key = wordKey(id, k);
-      const cls = `w${marks.on.has(key) ? ' on' : ''}${marks.miss === key ? ' miss' : ''}${marks.play === key ? ' play' : ''}`;
-      const word = <span className={cls}>{words[k]}</span>;
+      const cls = `w${marks.on.has(key) ? ' on' : ''}${marks.fresh.has(key) ? ' fresh' : ''}${marks.missed.has(key) ? ' missed' : ''}${marks.miss === key ? ' miss' : ''}${marks.play === key ? ' play' : ''}`;
+      const st = kashida.get(key);
+      const text = st ? words[k].slice(0, st[0]) + '\u0640'.repeat(st[1]) + words[k].slice(st[0]) : words[k];
+      const word = <span className={cls}>{text}</span>;
       items.push(
         k === words.length - 1 ? (
           <span key={key} className="wend">
