@@ -6,7 +6,10 @@
 // - /api/sessions: sessions kept in KV, saved while they run (one key each); the laptop copies them into sessions/ (scripts/pull_sessions.mjs).
 // - /api/audio: the owner's sessions' audio in R2, 15 s slices under the session's time (client/src/live/recorder.ts).
 // - /api/tafsir, /api/library: Ibn Juzay from the static files, open to everyone; everything else from the laptop's
-//   local Shamela (LIBRARY_ORIGIN, through the tunnel) when the laptop is on, for the owner only.
+//   local Shamela (LIBRARY_ORIGIN, through the tunnel) when the laptop is on, for the owner (and his guests) only.
+// - Guests: GUEST_KEYS (secret, comma-separated, each «g-<name>-<random>») open the app on the owner's Gemini key, for
+//   people he lets try it. Their sessions are saved with `guest: <name>`; they cannot read sessions or keep audio.
+// - The same Worker serves the mushaf mode on its own host (wrangler.toml [env.mushaf]; the app reads the host).
 import { mintListenToken, mintToken } from '../client/src/live/token';
 
 interface Env {
@@ -15,6 +18,7 @@ interface Env {
   AUDIO?: R2Bucket; // without it the app records nothing
   GEMINI_API_KEY: string;
   ACCESS_KEY: string;
+  GUEST_KEYS?: string;
   LIVE_MODEL?: string;
   LIBRARY_ORIGIN: string; // the laptop server, e.g. https://hifz.benjelloun.dev (the tunnel)
 }
@@ -27,18 +31,26 @@ const OFFLINE_MSG = 'هذا الكتاب في مكتبة الحاسوب، وال
 // Without the private link (a reciter with their own Gemini key): the laptop's library is not theirs to reach.
 const PRIVATE_MSG = 'هذا الكتاب ليس في هذه النسخة من التطبيق: مكتبة الشاملة على حاسوب صاحبه.';
 
-function keyOk(req: Request, env: Env): boolean {
-  const given = req.headers.get('X-Access-Key') || '';
-  if (!env.ACCESS_KEY || given.length !== env.ACCESS_KEY.length) return false;
+function same(given: string, key: string): boolean {
+  if (!key || given.length !== key.length) return false;
   let diff = 0;
-  for (let i = 0; i < given.length; i++) diff |= given.charCodeAt(i) ^ env.ACCESS_KEY.charCodeAt(i);
+  for (let i = 0; i < given.length; i++) diff |= given.charCodeAt(i) ^ key.charCodeAt(i);
   return diff === 0;
 }
 
+/** Who the key is: the owner, a guest (by name), or nobody. */
+function whoIs(req: Request, env: Env): { owner: true } | { guest: string } | null {
+  const given = req.headers.get('X-Access-Key') || '';
+  if (same(given, env.ACCESS_KEY)) return { owner: true };
+  const guest = (env.GUEST_KEYS || '').split(',').map((k) => k.trim()).find((k) => k.startsWith('g-') && same(given, k));
+  return guest ? { guest: guest.split('-')[1] || 'guest' } : null;
+}
+
 async function token(req: Request, env: Env): Promise<Response> {
-  const body = (await req.json().catch(() => ({}))) as { handle?: string; riwaya?: string; listen?: boolean };
+  const body = (await req.json().catch(() => ({}))) as { handle?: string; riwaya?: string; listen?: boolean; mode?: string };
+  const mode = body.mode === 'mushaf' ? ('mushaf' as const) : undefined;
   try {
-    const t = body.listen ? await mintListenToken(env.GEMINI_API_KEY) : await mintToken(env.GEMINI_API_KEY, { riwaya: body.riwaya, handle: body.handle, model: env.LIVE_MODEL });
+    const t = body.listen ? await mintListenToken(env.GEMINI_API_KEY) : await mintToken(env.GEMINI_API_KEY, { riwaya: body.riwaya, handle: body.handle, model: env.LIVE_MODEL, mode });
     return json({ ok: true, token: t.token, model: t.model });
   } catch (e) {
     const msg = String((e as Error)?.message || e);
@@ -92,12 +104,13 @@ async function readJson(req: Request): Promise<unknown> {
   return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
 }
 
-async function sessions(req: Request, env: Env, url: URL): Promise<Response> {
+async function sessions(req: Request, env: Env, url: URL, guest?: string): Promise<Response> {
   if (req.method === 'POST') {
-    const body = (await readJson(req).catch(() => null)) as { at?: number; end?: number; lines?: unknown[]; events?: unknown[] } | null;
+    const body = (await readJson(req).catch(() => null)) as { at?: number; end?: number; lines?: unknown[]; events?: unknown[]; guest?: string } | null;
     if (!body) return json({ ok: false }, 400);
+    if (guest) body.guest = guest;
     const at = Number(body.at) || Date.now();
-    const key = `s:${new Date(at).toISOString()}`;
+    const key = `s:${new Date(at).toISOString()}${guest ? '-' + guest : ''}`; // two guests may start in the same ms
     const end = Number(body.end) || 0;
     const old = await env.SESSIONS.getWithMetadata<Meta>(key, 'stream');
     await old.value?.cancel(); // only its metadata is needed
@@ -112,6 +125,7 @@ async function sessions(req: Request, env: Env, url: URL): Promise<Response> {
     await env.SESSIONS.put(key, value, { metadata: { u: Date.now(), end } satisfies Meta });
     return json({ ok: true });
   }
+  if (guest) return json({ ok: false }, 403);
   // GET: the laptop pulls what was written since its last pull (?since=<ms, server time>; `now` comes back for the
   // next one). A key written before the metadata existed counts as written at its own time. ?after=<key>: the old form.
   const since = url.searchParams.has('since') ? Number(url.searchParams.get('since')) || 0 : null;
@@ -168,23 +182,26 @@ async function audio(req: Request, env: Env, url: URL): Promise<Response> {
 async function manifest(env: Env, url: URL): Promise<Response> {
   const m = await (await env.ASSETS.fetch(new URL('/manifest.json', url))).json<Record<string, unknown>>();
   const k = url.searchParams.get('k') || '';
-  if (env.ACCESS_KEY && k === env.ACCESS_KEY) m.start_url = '/?k=' + encodeURIComponent(k);
+  const known = (env.ACCESS_KEY && k === env.ACCESS_KEY) || (k.startsWith('g-') && (env.GUEST_KEYS || '').split(',').map((x) => x.trim()).includes(k));
+  if (known) m.start_url = '/?k=' + encodeURIComponent(k);
+  if (url.hostname.startsWith('tarteel-warsh.')) Object.assign(m, { name: 'المُسَمِّع · المصحف', short_name: 'المصحف', id: '/mushaf' });
   return new Response(JSON.stringify(m), { headers: { 'Content-Type': 'application/manifest+json' } });
 }
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
-    if (url.pathname === '/manifest.json' && url.searchParams.has('k')) return manifest(env, url);
+    if (url.pathname === '/manifest.json' && (url.searchParams.has('k') || url.hostname.startsWith('tarteel-warsh.'))) return manifest(env, url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(req);
-    const authed = keyOk(req, env);
-    if (url.pathname === '/api/tafsir') return tafsir(req, env, url, authed); // Ibn Juzay is static: open to all
-    if (url.pathname === '/api/library' && !authed) return json({ ok: false, error: PRIVATE_MSG }, 403);
-    if (!authed) return json({ ok: false, error: 'افتح التطبيق من رابطك الخاص مرة واحدة' }, 401);
+    const who = whoIs(req, env);
+    const guest = who && 'guest' in who ? who.guest : undefined;
+    if (url.pathname === '/api/tafsir') return tafsir(req, env, url, !!who && !guest); // Ibn Juzay is static: open to all
+    if (url.pathname === '/api/library' && !who) return json({ ok: false, error: PRIVATE_MSG }, 403);
+    if (!who) return json({ ok: false, error: 'افتح التطبيق من رابطك الخاص مرة واحدة' }, 401);
     if (url.pathname === '/api/live/token' && req.method === 'POST') return token(req, env);
     if (url.pathname === '/api/library') return viaLaptop(req, env, url);
-    if (url.pathname === '/api/sessions') return sessions(req, env, url);
-    if (url.pathname === '/api/audio') return audio(req, env, url);
+    if (url.pathname === '/api/sessions') return sessions(req, env, url, guest);
+    if (url.pathname === '/api/audio') return guest ? json({ ok: false }, 403) : audio(req, env, url);
     return json({ ok: false, error: 'Endpoint not found' }, 404);
   },
 };

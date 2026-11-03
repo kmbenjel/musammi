@@ -1,0 +1,176 @@
+# Mushaf mode · وضع المصحف
+
+> **Experimental.** A second way to use al-Musammiʿ, being tried with a few people before it is decided whether it
+> stays. It lives on the branch `mushaf` and is served at **[tarteel-warsh.benjelloun.dev](https://tarteel-warsh.benjelloun.dev)**.
+> It is not affiliated with Tarteel AI or any other app.
+
+<p align="center">
+  <img src="mushaf.png" width="250" alt="Page 262, the opening of al-Hijr, as the Madina mushaf sets it, ayah numbers in plain digits">
+  &nbsp;
+  <img src="mushaf-hidden.png" width="250" alt="Page 356 hidden: only the words recited right so far are written, in their place">
+  &nbsp;
+  <img src="mushaf-604.png" width="250" alt="Page 604: three surah frames, short lines centred">
+</p>
+
+<div dir="rtl">
+
+## باختصار
+
+بدل شاشة الكلام، **صفحة المصحف** أمامك: مصحف المدينة (مجمع الملك فهد، ١٤٤١)، رواية ورش عن نافع من طريق الأزرق، بخط ورش الذي في المُسَمِّع، خمسة عشر سطراً مستوية في كل صفحة، وأرقام الآيات بالأرقام العادية (1، 2، 3).
+
+- **أظهِر الكتابة أو أخفِها** بزرّ العين. إذا أخفيتَها كتب التطبيق ما تقرؤه صواباً في موضعه من الصفحة، كلمةً كلمة.
+- **«أعِد»** عند الخطأ كما في المُسَمِّع: يمحو التطبيق ما كتبه من ذلك المقطع، ويعلّم موضع الخطأ بالأحمر لحظات.
+- **لا فتح أبداً**، لا عند السكوت ولا عند الطلب: الصفحة بين يديك، أظهِرها بالعين، أو اضغط عليها مطوّلاً فتظهر ما دمتَ ضاغطاً.
+- **قلّب إلى صفحة** فأنت تقرأ منها. **واقرأ من موضع آخر قاصداً** فتنتقل الصفحة إليه، وتنقلب وحدها حين تتمّ آخر سطر فيها.
+- **«أسمعني…»** يتلو العيون الكوشي، فتنتقل الصفحة إلى موضعه ظاهرةً، وتُعلَّم الكلمة التي يتلوها، ثم تعود الكتابة كما كانت.
+- **الصلاة** كما في المُسَمِّع: كبّر واقرأ، تُظلم الشاشة، ولا يقول شيخك إلا «أعِد».
+- **«اختبرني»**، والجلسات السابقة، و«حسبك»، والمكتبة (البدور الزاهرة، النشر، الإتقان) كما هي. **لا تفسير** في هذا الوضع، ولا رواية غير ورش.
+- **الفهرس**: السور بصفحاتها، أو رقم صفحة. والرابط `?p=50` يفتح الصفحة 50.
+
+</div>
+
+## What changes, and what does not
+
+The mode reuses the whole live engine of al-Musammiʿ (`client/src/live/`): the same Gemini Live session, turn
+cutting at pauses, position tracker, breath guard, echo guard, handover before Google's 10-minute cut, salat
+detection, exams, recordings and the stop word «حسبك». What differs:
+
+| | al-Musammiʿ | Mushaf mode |
+|---|---|---|
+| Screen | the conversation: what you recited (as printed, when right) and the teacher's replies | the mushaf page; the teacher's last remark floats over it for 7 s |
+| Riwayat | eight | Warsh only |
+| Fath | after 5 s of silence mid-ayah (3.5 s in prayer), on «افتح», on istiṭʿām in prayer | **never**; on «افتح» the teacher whispers «أظهِر الصفحة» |
+| In prayer | «أعِد» and the fath | «أعِد» only (any other reply is muted by the app, not only by the prompt) |
+| Tafsir | Ibn Juzay, and the owner's Shamela tafsirs | none (the tool is not declared) |
+| «أرني الآية» | a card with the ayah | the page of that ayah, shown |
+| A recording | plays | plays, turns to its page, shows it, follows al-Kushi word by word |
+
+It is switched on by the host name (`tarteel-warsh.`), or on any host with `?mode=mushaf` once (kept on the device;
+`?mode=off` leaves it). Everything mode-specific is behind `mode: 'mushaf'` in the session and the prompt, so
+al-Musammiʿ itself behaves exactly as before.
+
+## How it works
+
+### 1. The pages: Madina layout, our font
+
+The KFGQPC Warsh data (`data/riwayat/warsh/data.json`) gives each ayah its page and its first and last line on that
+page (four ayat cross a page). It does not say where an ayah's words break between its lines. The app's Warsh font
+is not the calligraphy the mushaf was printed in, so its words have other widths, and the breaks have to be chosen
+again.
+
+[`scripts/build_mushaf_layout.py`](../scripts/build_mushaf_layout.py) does that once, at build time:
+
+1. Every printed word (a token with letters; «۞» goes with the word after it, the ayah's number becomes a disc)
+   is measured in the font with HarfBuzz.
+2. The words of the whole mushaf are laid out by dynamic programming, under the data's constraints: each ayah
+   starts on its first line and ends on its last, its words never leave them, and a line may hold the end of one
+   ayah and the start of the next. Among the layouts that keep to them, it takes the one whose lines come closest to
+   a common width **W**, the width of a full line (the 98.5th percentile of the line widths).
+3. Surah frames and the basmala fill the two lines before each surah's first ayah (one line for at-Tawba).
+4. It writes `client/public/riwayat/warsh/mushaf.json` (177 KB): for each page, its 15 lines as
+   `[ayah id, first word, last word]` segments, plus `f`, a font scale for the 41 pages that hold a line longer
+   than W (smallest 0.85), and `c`, the 92 lines shorter than 62 % of W.
+
+In the browser ([`MushafView.tsx`](../client/src/mushaf/MushafView.tsx)) the font is sized so that W fills the
+page's width (and 15 lines its height), and each line spreads its words to both edges, as print does. The lines in
+`c`, such as the end of a surah, stay in the middle at the usual spacing: print stretches the letters there
+(kashida), which this font cannot do. Pages 1 and 2 are centred, as in print. The median line fills 80 % of W
+before spreading.
+
+```sh
+uv run --with uharfbuzz --with fonttools --with brotli scripts/build_mushaf_layout.py
+```
+
+### 2. Writing what was recited right
+
+The position tracker (`PositionTracker`, [`reference.ts`](../client/src/live/reference.ts)) already follows the
+reciter word by word through the live transcript. It now also keeps `hits`, every text word it matched, and
+`printedAt(k)` maps its normalized words back to printed words (one printed word can normalize to two words, or to
+none).
+
+The session ([`session.ts`](../client/src/live/session.ts), «mushaf mode» section) turns that into what the page
+shows:
+
+- `reveal()` after each transcript: the new hits are written at once (`onWords`), and the page follows the next word
+  to recite (`onPlace`), so it turns when a page is finished.
+- `judged()` when the turn reopens with no «أعِد»: the words between two hits of the stretch are written too. The
+  transcript drops words, and one-letter openings («صٓ», «قٓ», «نٓ») are never matched.
+- `missed()` when the teacher's «أعِد» is played (not when the breath guard mutes it): that stretch's words are taken
+  back and its first word is marked (`onMiss`, red for 4 s). He repeats, and they are written again.
+
+### 3. Following the reciter
+
+- **He turns the page** and stays on it for 1.2 s: `openAt()` opens the tracker on that page and the 10 after it,
+  with the place not yet confirmed, so a stretch read anywhere on them places him. The teacher gets that page's
+  text (three pages of it; more follow as he nears the end, as before).
+- **He starts the session**: from the page shown. The last session's place (within 15 minutes) is only kept if it
+  is on that page.
+- **He recites from elsewhere on purpose**: the tracker's existing move detection, or the whole-mushaf locator,
+  places him, and the page follows.
+- **A recording plays**: `onShow` turns to its first ayah and shows the page; with al-Kushi's word timings
+  (`client/public/riwayat/warsh/words/laayoun-kouchi/`) the word being recited is marked and the page follows it.
+  When the recording stops, the writing goes back to hidden if it was hidden.
+
+### 4. The teacher
+
+`systemInstruction(riwaya, 'mushaf')` ([`prompt.ts`](../client/src/live/prompt.ts)) is the same prompt with the
+fath rules replaced by "never give a fath", no tafsir, no other riwaya, and its own «عن التطبيق». `liveConfig`
+drops the `tafsir` and `set_riwaya` tools. The mode travels in the token request (`/api/live/token`, `mode`), or into
+the token the browser mints with the reciter's own key.
+
+## Who can use it
+
+- **With your own Gemini key**: open the site, «أدخل مفتاحك», as in al-Musammiʿ. The key stays on the phone.
+- **The owner's private link** (`?k=ACCESS_KEY`): his key, his sessions saved and, as in al-Musammiʿ, his audio.
+- **Guest links** for the people the owner lets try it, on his Gemini key: each guest has a key of their own,
+  `g-<name>-<random>`, that can be revoked alone. A guest's sessions are saved with `guest: <name>`. Guests cannot
+  read sessions, and their audio is never recorded (the app checks the `g-` prefix, the Worker refuses it too).
+  They share the owner's daily Gemini quota.
+
+```sh
+node scripts/guest_keys.mjs add amina      # prints https://tarteel-warsh.benjelloun.dev/?k=g-amina-…
+node scripts/guest_keys.mjs remove amina
+node scripts/guest_keys.mjs list
+```
+
+The keys are kept in `.guests.json` (not in git) and sent to the Worker as the secret `GUEST_KEYS`.
+
+## Deploy
+
+The same Worker code as al-Musammiʿ, under a second name and host (`[env.mushaf]` in
+[`wrangler.toml`](../wrangler.toml)), with the same session store and audio bucket. Sessions of this mode carry
+`mode: "mushaf"`.
+
+```sh
+cd client && npm run build && cd ..
+npx wrangler deploy --env mushaf
+# once:
+npx wrangler secret put GEMINI_API_KEY --env mushaf
+npx wrangler secret put ACCESS_KEY --env mushaf
+npx wrangler secret put GUEST_KEYS --env mushaf     # or scripts/guest_keys.mjs
+```
+
+## Tests
+
+[`test/mushaf_words.ts`](../test/mushaf_words.ts) (build and run lines at its top) checks:
+
+- every printed word of all 6,214 ayat is reached when the ayah is recited as printed;
+- the layout places every printed word once, in order;
+- through the session: a stretch writes its words and the page follows, «أعِد» takes them back and marks the place,
+  a dropped word is written once the stretch passes, «صٓ» is written after the stretch that follows it, «افتح» asks
+  no fath, and turning to a page sends its text to the teacher.
+
+The existing tracker, breath guard, echo guard, phrase and stop word tests pass unchanged. End to end, a real
+recording of the owner reciting an-Nur 47–52, played as the microphone into a headless browser against the live
+model, wrote 62 words on the hidden page, turned from page 356 to 357 when its last line was done, took a word back
+on a «أعِد», and wrote it again on the repetition.
+
+## Known limits
+
+- **Spacing.** Without kashida, a line far shorter than W either shows wide gaps or is centred. The threshold
+  (62 %) is a judgment call; kashida insertion (tatweel between joined letters) is the way to a printed look.
+- **Mistakes are marked by stretch, not by word.** The model says «أعِد» for a stretch; it does not say which word
+  was wrong, so the first word of the stretch is marked.
+- **Words the transcript turns into Hafs** (`مالك` for `مَلِكِ`) are matched as the word, as in al-Musammiʿ: they
+  are written, and only the teacher's «أعِد» takes them back.
+- **Only al-Kushi is followed word by word**; the other recordings turn to the page without marking words.

@@ -5,6 +5,9 @@
 #
 #   scripts/publish_snapshot.sh "commit message"
 #   git push <public remote> public:main        # after checking, by hand
+#
+# PUBLIC_BRANCH=public-mushaf builds the snapshot of another branch (the mushaf mode) on a branch of its own, which
+# starts from `public` (push it as public-mushaf:mushaf).
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 msg=${1:?usage: scripts/publish_snapshot.sh "commit message"}
@@ -45,12 +48,13 @@ else
 fi
 if git grep -qE -e 'AIza[0-9A-Za-z_-]{35}' "$tree"; then fail "a Google API key is in the tree"; fi
 
-parent=$(git rev-parse -q --verify refs/heads/public || true)
+branch=${PUBLIC_BRANCH:-public}
+parent=$(git rev-parse -q --verify "refs/heads/$branch" || git rev-parse -q --verify refs/heads/public || true)
 if [ -n "$parent" ] && [ "$(git rev-parse "$parent^{tree}")" = "$tree" ]; then
-  echo "public is already up to date ($parent)"
+  echo "$branch is already up to date ($parent)"
   exit 0
 fi
 commit=$(GIT_AUTHOR_NAME=$NAME GIT_AUTHOR_EMAIL=$EMAIL GIT_COMMITTER_NAME=$NAME GIT_COMMITTER_EMAIL=$EMAIL \
   git commit-tree "$tree" ${parent:+-p "$parent"} -m "$msg")
-git update-ref refs/heads/public "$commit" ${parent:+"$parent"}
-echo "public → $commit: $(git ls-tree -r --name-only "$tree" | wc -l) files, from $(git rev-parse --short HEAD)"
+git update-ref "refs/heads/$branch" "$commit" $(git rev-parse -q --verify "refs/heads/$branch" || true)
+echo "$branch → $commit: $(git ls-tree -r --name-only "$tree" | wc -l) files, from $(git rev-parse --short HEAD)"

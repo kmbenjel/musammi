@@ -2,6 +2,7 @@
 // link). It is kept in this browser and sent only to Google, which mints the session's ephemeral token with the
 // same setup as the Worker (live/token.ts, loaded on first use with the Google SDK).
 import type { RiwayaKey } from '../live/riwayat';
+import type { Mode } from '../live/prompt';
 
 const STORE = 'musammi_gemini_key';
 // The same words as the session's (session.ts compares them to end the session instead of retrying).
@@ -35,10 +36,10 @@ function why(e: unknown): string {
 }
 
 /** The session's token, minted in this browser with the reciter's key. */
-export async function tokenWithOwnKey(apiKey: string, handle: string | null, riwaya: RiwayaKey) {
+export async function tokenWithOwnKey(apiKey: string, handle: string | null, riwaya: RiwayaKey, mode?: Mode) {
   const { mintToken } = await import('../live/token');
   try {
-    return await mintToken(apiKey, { riwaya, handle });
+    return await mintToken(apiKey, { riwaya, handle, mode });
   } catch (e) {
     throw new Error(why(e));
   }

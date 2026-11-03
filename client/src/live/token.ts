@@ -5,13 +5,13 @@
 // - the browser mints it with the reciter's own AI Studio key, which never leaves the device except to Google
 //   (Google's token endpoint accepts calls from the browser). Loaded on demand: the SDK is only needed there.
 import { GoogleGenAI } from '@google/genai';
-import { liveConfig } from './prompt';
+import { liveConfig, type Mode } from './prompt';
 import { STOP_WORD } from './stopword';
 
 export const LIVE_MODEL = 'gemini-3.8-live';
 const LISTEN_MODEL = 'models/gemini-3.5-transcribe-live';
 
-export async function mintToken(apiKey: string, opts: { riwaya?: string | null; handle?: string | null; model?: string }) {
+export async function mintToken(apiKey: string, opts: { riwaya?: string | null; handle?: string | null; model?: string; mode?: Mode }) {
   const model = 'models/' + (opts.model || LIVE_MODEL);
   const client = new GoogleGenAI({ apiKey, apiVersion: 'v1alpha' });
   const now = Date.now();
@@ -22,7 +22,7 @@ export async function mintToken(apiKey: string, opts: { riwaya?: string | null; 
       newSessionExpireTime: new Date(now + 2 * 60 * 1000).toISOString(),
       liveConnectConstraints: {
         model,
-        config: { ...(liveConfig(opts.riwaya) as object), sessionResumption: opts.handle ? { handle: opts.handle } : {} },
+        config: { ...(liveConfig(opts.riwaya, opts.mode) as object), sessionResumption: opts.handle ? { handle: opts.handle } : {} },
       },
     },
   });
