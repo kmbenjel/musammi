@@ -654,7 +654,10 @@ export class RecitationSession {
   }
 
   private send(obj: unknown) {
-    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(obj));
+    // ے is how the KFGQPC Warsh/Qaloon fonts write a final ya (فِے = فِي, ~3000 words): the model does not read it as
+    // one, and spoke «شُرَكَآءِے» (41:46) as «شركاؤو». The screen keeps the mushaf's own letter.
+    const s = JSON.stringify(obj);
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(s.includes('ے') ? s.replaceAll('ے', 'ي') : s);
   }
 
   // ── mic & turns ────────────────────────────────────────────────────────
@@ -810,7 +813,7 @@ export class RecitationSession {
 
   private finishYou() {
     if (this.you) {
-      this.ev.onYou(this.you, true, this.youInMushaf());
+      this.ev.onYou(this.you.trim(), true, this.youInMushaf()); // untrimmed, App's already-shown check missed it: lines twice
       this.lastAsked = this.you;
       if (STANDING.test(plain(this.you)) && namesAnEnd(this.you)) this.standing = this.you; // «في كل مرة آيتين»
       const first = this.tracker.ayahAt(this.youFrom);
@@ -1231,9 +1234,10 @@ export class RecitationSession {
         } else if (c.name === 'exam_question') {
           const q = await this.deps.nextExamQuestion({ surah: args.surah, juz: args.juz });
           this.ev.onCard({ title: `السؤال ${q.n} · ${q.title}`, text: q.cue });
+          this.ev.onPosition(`الاختبار · السؤال ${q.n}`); // not the place recited before the exam
           this.openExam(q.ayat);
           if (this.exam) this.exam.asked = `السؤال ${q.n}: ${q.question} (على الشاشة: «${q.cue}»)، والجواب المتوقَّع (EXPECTED، لا تكشفه): «${q.expected}»`;
-          response = { number: q.n, question: q.question, cue_shown_on_screen: q.cue, EXPECTED: q.expected };
+          response = { number: q.n, say_exactly: q.question, cue_shown_on_screen: q.cue, EXPECTED: q.expected };
         } else if (c.name === 'tafsir') {
           const key = `${Number(args.surah) || this.current?.s || 1}:${Number(args.ayah) || this.current?.a || 1}`;
           const hafsId = m.toHafs[key];

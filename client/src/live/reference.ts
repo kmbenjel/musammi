@@ -225,7 +225,9 @@ export class PositionTracker {
       return;
     }
     let best = none;
-    for (let k = this.ptr + 8; k < this.words.length; k++) {
+    // from where `here` stopped looking (a start up to ptr+2), nearest first: a phrase found again further on loses
+    // to the same phrase just after a few words the transcript dropped (from ptr+8, 24:49 won over 24:46, 2026-11-02)
+    for (let k = this.ptr + 3; k < this.words.length; k++) {
       const f = fits(k);
       if (f.hit > best.hit) best = f;
     }
@@ -269,8 +271,13 @@ export class PositionTracker {
       // mutashabihat, say), not a slip into a similar ayah halfway through
       const finished = this.ptr >= this.words.length || this.words[this.ptr].idx !== this.words[this.ptr - 1]?.idx;
       const fresh = best.start === 0 || this.words[best.start - 1].idx !== this.words[best.start].idx;
-      this.skipped = { from, to, moved: finished && fresh };
-      if (finished && fresh) this.slipFrom = -1;
+      // ...except one ayah left out in the same surah: reciting on, he dropped it («لا، أنا قفزت الآية», recording
+      // 10-26 00:12). A short one stays a move: the transcript can lose 2-4 words whole.
+      const left = to.id - from.id === 2 && to.s === from.s ? this.ayat.find((x) => x.id === from.id + 1) : undefined;
+      const dropped = !!left && normalizeTranscript(left.c || left.t).split(' ').filter(Boolean).length >= 5;
+      const moved = finished && fresh && !dropped;
+      this.skipped = { from, to, moved };
+      if (moved) this.slipFrom = -1;
       else {
         if (this.slipFrom < 0) this.slipFrom = this.ptr; // slipping again: the right place is still the first one
         this.slipTo = this.words[best.start].idx;

@@ -9,7 +9,8 @@
 //   local Shamela (LIBRARY_ORIGIN, through the tunnel) when the laptop is on, for the owner (and his guests) only.
 // - Guests: GUEST_KEYS (secret, comma-separated, each «g-<name>-<random>») open the app on the owner's Gemini key, for
 //   people he lets try it. Their sessions are saved with `guest: <name>`; they cannot read sessions or keep audio.
-// - The same Worker serves the mushaf mode on its own host (wrangler.toml [env.mushaf]; the app reads the host).
+// - The mushaf mode is the app at /mushaf (same origin: the same keys). Its first host, tarteel-warsh.benjelloun.dev
+//   (wrangler.toml [env.mushaf]), only sends there.
 import { mintListenToken, mintToken } from '../client/src/live/token';
 
 interface Env {
@@ -183,15 +184,18 @@ async function manifest(env: Env, url: URL): Promise<Response> {
   const m = await (await env.ASSETS.fetch(new URL('/manifest.json', url))).json<Record<string, unknown>>();
   const k = url.searchParams.get('k') || '';
   const known = (env.ACCESS_KEY && k === env.ACCESS_KEY) || (k.startsWith('g-') && (env.GUEST_KEYS || '').split(',').map((x) => x.trim()).includes(k));
-  if (known) m.start_url = '/?k=' + encodeURIComponent(k);
-  if (url.hostname.startsWith('tarteel-warsh.')) Object.assign(m, { name: 'المُسَمِّع · المصحف', short_name: 'المصحف', id: '/mushaf' });
+  const at = url.searchParams.get('mode') === 'mushaf' ? '/mushaf' : '/';
+  m.start_url = at + (known ? '?k=' + encodeURIComponent(k) : '');
+  if (at === '/mushaf') Object.assign(m, { name: 'المُسَمِّع · المصحف', short_name: 'المصحف', id: '/mushaf', scope: '/' });
   return new Response(JSON.stringify(m), { headers: { 'Content-Type': 'application/manifest+json' } });
 }
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
-    if (url.pathname === '/manifest.json' && (url.searchParams.has('k') || url.hostname.startsWith('tarteel-warsh.'))) return manifest(env, url);
+    // the mushaf mode's first host: the mode now lives at /mushaf, with the app's keys
+    if (url.hostname.startsWith('tarteel-warsh.')) return Response.redirect(`https://musammi.benjelloun.dev/mushaf${url.search}`, 302); // not 301: a phone keeps a 301 for good
+    if (url.pathname === '/manifest.json' && (url.searchParams.has('k') || url.searchParams.has('mode'))) return manifest(env, url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(req);
     const who = whoIs(req, env);
     const guest = who && 'guest' in who ? who.guest : undefined;

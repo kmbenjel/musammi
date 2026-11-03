@@ -229,6 +229,9 @@ export async function recitationSpan(
   const nameOf = (s: number) => m.surahs.find((x) => x.no === s)?.name_ar ?? String(s);
   let s = Number(args.surah) || surahNow || 1;
   const knownSurah = !!(Number(args.surah) || surahNow);
+  // «شغل هذه الآية» after talking of النور 56, nothing recited yet: surah 1 played (2026-11-03 07:37)
+  if (!knownSurah && !String(args.from_words ?? '').trim())
+    return { error: 'لم تُمرَّر السورة ولا يُعرف موضعه. استدعِ play_recitation ثانية بـ surah و from_ayah مما ذُكر في الكلام، أو اسأله أي سورة.' };
   const fromAyah = Number(args.from_ayah) || 0;
   const toAyah = Number(args.to_ayah) || 0;
   let shortened = 0;

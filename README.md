@@ -31,7 +31,7 @@ Warsh by default, and seven other riwayat of the King Fahd Complex mushafs.**
 
 الشرح المفصّل للمبتدئين: **[musammi.benjelloun.dev/guide](https://musammi.benjelloun.dev/guide)**.
 
-**وضع المصحف (تجريبي):** صفحة مصحف المدينة برواية ورش أمامك بدل شاشة الكلام، تُظهر الكتابة أو تُخفيها، فإذا أخفيتَها كُتب ما تقرؤه صواباً في موضعه، بلا فتح أبداً: **[tarteel-warsh.benjelloun.dev](https://tarteel-warsh.benjelloun.dev)** · [الشرح](docs/mushaf-mode.md).
+**وضع المصحف (تجريبي):** صفحة مصحف المدينة برواية ورش أمامك بدل شاشة الكلام، تُظهر الكتابة أو تُخفيها، فإذا أخفيتَها كُتب ما تقرؤه صواباً في موضعه، بلا فتح أبداً: **[musammi.benjelloun.dev/mushaf](https://musammi.benjelloun.dev/mushaf)** · [الشرح](docs/mushaf-mode.md).
 
 **تنبيه:** في الخطة المجانية قد يطّلع مراجعون من Google على ما يصلها (صوت تلاوتك ونصّها) وتستعمله في تحسين منتجاتها، ويشترط Google أن يكون صاحب المفتاح قد بلغ 18 سنة.
 
@@ -78,7 +78,7 @@ word you recite right in its place; «أعِد» takes the stretch back. There i
 shown at any time (the eye, or press and hold). The page follows you: turn to one and recite from it, recite from
 elsewhere and it moves there, ask for al-Kushi and it turns to the page and follows him word by word. Prayer mode,
 exams and recordings work as above; there is no tafsir. Try it at
-**[tarteel-warsh.benjelloun.dev](https://tarteel-warsh.benjelloun.dev)**, or with `?mode=mushaf` on any host.
+**[musammi.benjelloun.dev/mushaf](https://musammi.benjelloun.dev/mushaf)**: a key already saved in the app works there too.
 How the pages are laid out and how the words are written: **[docs/mushaf-mode.md](docs/mushaf-mode.md)**.
 
 ## How it works

@@ -134,7 +134,7 @@ export const MushafScreen: React.FC<Props> = (p) => {
             {p.history.length > 0 && <button className="link" onClick={() => setSheet('history')}>الجلسات السابقة ({p.history.length})</button>}
             <button className="link" onClick={() => { setSheet(null); p.onKey(); }}>{p.geminiKey ? 'مفتاح Gemini' : 'أدخل مفتاح Gemini'}</button>
             <a className="link" href="/guide">دليل البدء</a>
-            <a className="link" href="https://musammi.benjelloun.dev/">المُسَمِّع (الروايات الثماني)</a>
+            <a className="link" href="/">المُسَمِّع (الروايات الثماني)</a>
           </div>
         </div>
       )}

@@ -1,8 +1,8 @@
 # Mushaf mode · وضع المصحف
 
 > **Experimental.** A second way to use al-Musammiʿ, being tried with a few people before it is decided whether it
-> stays. It lives on the branch `mushaf` and is served at **[tarteel-warsh.benjelloun.dev](https://tarteel-warsh.benjelloun.dev)**.
-> It is not affiliated with Tarteel AI or any other app.
+> stays: **[musammi.benjelloun.dev/mushaf](https://musammi.benjelloun.dev/mushaf)**. It is not affiliated with Tarteel AI
+> or any other app.
 
 <p align="center">
   <img src="mushaf.png" width="250" alt="Page 300, al-Kahf, as the Madina mushaf sets it, lines filled by kashida, ayah numbers in plain digits">
@@ -46,9 +46,11 @@ detection, exams, recordings and the stop word «حسبك». What differs:
 | «أرني الآية» | a card with the ayah | the page of that ayah, shown |
 | A recording | plays | plays, turns to its page, shows it, follows al-Kushi word by word |
 
-It is switched on by the host name (`tarteel-warsh.`), or on any host with `?mode=mushaf` once (kept on the device;
-`?mode=off` leaves it). Everything mode-specific is behind `mode: 'mushaf'` in the session and the prompt, so
-al-Musammiʿ itself behaves exactly as before.
+It is the same app at the path `/mushaf`: the same origin, so a Gemini key or private link already saved in
+al-Musammiʿ serves it too, with nothing to enter again, and the same Worker with its secrets. Installed from there
+(«تثبيت التطبيق»), it is an app of its own that opens on `/mushaf`. Everything mode-specific is behind
+`mode: 'mushaf'` in the session and the prompt, so al-Musammiʿ itself behaves exactly as before. Its first address,
+tarteel-warsh.benjelloun.dev, sends there (302).
 
 ## How it works
 
@@ -134,7 +136,8 @@ the token the browser mints with the reciter's own key.
 
 ## Who can use it
 
-- **With your own Gemini key**: open the site, «أدخل مفتاحك», as in al-Musammiʿ. The key stays on the phone.
+- **With your own Gemini key**: the key saved in al-Musammiʿ on this phone serves here too; otherwise «أدخل مفتاحك».
+  The key stays on the phone.
 - **The owner's private link** (`?k=ACCESS_KEY`): his key, his sessions saved and, as in al-Musammiʿ, his audio.
 - **Guest links** for the people the owner lets try it, on his Gemini key: each guest has a key of their own,
   `g-<name>-<random>`, that can be revoked alone. A guest's sessions are saved with `guest: <name>`. Guests cannot
@@ -142,7 +145,7 @@ the token the browser mints with the reciter's own key.
   They share the owner's daily Gemini quota.
 
 ```sh
-node scripts/guest_keys.mjs add amina      # prints https://tarteel-warsh.benjelloun.dev/?k=g-amina-…
+node scripts/guest_keys.mjs add amina      # prints https://musammi.benjelloun.dev/mushaf?k=g-amina-…
 node scripts/guest_keys.mjs remove amina
 node scripts/guest_keys.mjs list
 ```
@@ -151,18 +154,9 @@ The keys are kept in `.guests.json` (not in git) and sent to the Worker as the s
 
 ## Deploy
 
-The same Worker code as al-Musammiʿ, under a second name and host (`[env.mushaf]` in
-[`wrangler.toml`](../wrangler.toml)), with the same session store and audio bucket. Sessions of this mode carry
-`mode: "mushaf"`.
-
-```sh
-cd client && npm run build && cd ..
-npx wrangler deploy --env mushaf
-# once:
-npx wrangler secret put GEMINI_API_KEY --env mushaf
-npx wrangler secret put ACCESS_KEY --env mushaf
-npx wrangler secret put GUEST_KEYS --env mushaf     # or scripts/guest_keys.mjs
-```
+Nothing of its own: it ships with al-Musammiʿ (`npx wrangler deploy`), with its sessions in the same store, marked
+`mode: "mushaf"`. The old host's redirect is `[env.mushaf]` in [`wrangler.toml`](../wrangler.toml)
+(`npx wrangler deploy --env mushaf`, no secrets).
 
 ## Tests
 

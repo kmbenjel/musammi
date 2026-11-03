@@ -29,7 +29,6 @@ const MISTAKE_MS = 8000; // a mistake stays this long after «أعد», so that 
 const KEPT_LINES = 120; // per session in this phone's history (localStorage is ~5 MB)
 const KEEPALIVE_MAX = 60_000; // a keepalive request body must stay under 64 KB
 const SAVE_EVERY = 60_000; // a running session is saved this often (when something changed), so a killed app loses little
-const MODE_KEY = 'hifz_warsh_mode';
 const PAGE_KEY = 'hifz_warsh_page';
 const HIDDEN_KEY = 'hifz_warsh_hidden';
 const OPEN_PAGE_MS = 1200; // a page he turned to and stayed on is where he will recite (not each page swiped past)
@@ -54,13 +53,8 @@ const store = {
   },
 };
 
-// The mushaf mode (client/src/mushaf/): its own host, or ?mode=mushaf once on this device (?mode=off leaves it).
-const MUSHAF = (() => {
-  const q = new URLSearchParams(location.search).get('mode');
-  if (q === 'mushaf') store.set(MODE_KEY, 'mushaf');
-  if (q === 'off') store.set(MODE_KEY, null);
-  return location.hostname.startsWith('tarteel-warsh.') || store.get(MODE_KEY) === 'mushaf';
-})();
+// The mushaf mode (client/src/mushaf/) at /mushaf: the same origin as the app, so the keys saved here serve it too.
+const MUSHAF = /^\/mushaf(\/|$)/.test(location.pathname);
 const MODE = MUSHAF ? ('mushaf' as const) : undefined;
 if (MUSHAF) document.title = 'المُسَمِّع · المصحف';
 
@@ -77,8 +71,10 @@ function takeAccessKey(): string | null {
     history.replaceState(null, '', url.pathname + url.search + url.hash);
   }
   const key = store.get(ACCESS_KEY);
-  // so that «Install app» bakes the key into the home-screen app (see /manifest.json on the server)
-  if (key) document.querySelector('link[rel=manifest]')?.setAttribute('href', '/manifest.json?k=' + encodeURIComponent(key));
+  // so that «Install app» bakes the key into the home-screen app, and the mushaf mode installs as an app of its own
+  // (see /manifest.json on the server)
+  const q = new URLSearchParams({ ...(key && { k: key }), ...(MUSHAF && { mode: 'mushaf' }) }).toString();
+  if (q) document.querySelector('link[rel=manifest]')?.setAttribute('href', '/manifest.json?' + q);
   return key;
 }
 
@@ -361,7 +357,7 @@ export const App: React.FC = () => {
       n: ++exam.current.n,
       title: q.typeName,
       cue: q.cueText,
-      question: `${q.typeName} — سورة ${q.surahNameAr}، الآية ${q.ayahNo}`,
+      question: q.ask, // «typeName — surah, ayah» gave where_is_this its own answer, and juz_start no words
       expected: q.expectedText,
       ayat: q.type === 'where_is_this' ? [] : q.expectedAyatList.map((x) => ({ s: x.s, a: x.a })), // a name is asked: nothing to recite
     };

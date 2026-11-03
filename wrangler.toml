@@ -26,9 +26,8 @@ bucket_name = "almusammi-audio"
 LIVE_MODEL = "gemini-3.8-live"
 LIBRARY_ORIGIN = "https://hifz.benjelloun.dev"
 
-# The mushaf mode on its own host (branch mushaf): the same app and API, the same sessions and audio store; the app
-# turns the mode on from the host name. Deploy: npx wrangler deploy --env mushaf
-# Secrets (once): npx wrangler secret put GEMINI_API_KEY / ACCESS_KEY / GUEST_KEYS --env mushaf
+# The mushaf mode's first host: it now only sends to https://musammi.benjelloun.dev/mushaf (worker/index.ts), so it
+# needs no secrets. Deploy: npx wrangler deploy --env mushaf
 [env.mushaf]
 name = "tarteel-warsh"
 routes = [{ pattern = "tarteel-warsh.benjelloun.dev", custom_domain = true }]
