@@ -26,10 +26,12 @@ Warsh by default, and seven other riwayat of the King Fahd Complex mushafs.**
 
 1. افتح [صفحة المفاتيح في Google AI Studio](https://aistudio.google.com/apikey)، وادخل بحساب Google، واضغط «Create API key» ثم انسخ المفتاح. **المفتاح مجاني.**
 2. افتح [التطبيق](https://musammi.benjelloun.dev) واضغط «أدخل مفتاحك»، ثم «لصق» و«حفظ». يبقى المفتاح على هاتفك، ولا يُرسَل إلا إلى Google.
-3. أضفه إلى الشاشة الرئيسية (في Chrome: ⋮ ← «تثبيت التطبيق»؛ في Safari: المشاركة ← «إضافة إلى الشاشة الرئيسية»).
+3. أضفه إلى الشاشة الرئيسية (في Chrome: ⋮ ← «تثبيت التطبيق»؛ في Safari: ⋯ ← «مشاركة» ← «إضافة إلى الشاشة الرئيسية»).
 4. اضغط الدائرة، وقل ما ستقرأ («سأقرأ سورة الملك») ثم اقرأ. قل «افتح» إذا نسيت، و«اختبرني» للأسئلة، وللصلاة كبّر واقرأ.
 
 الشرح المفصّل للمبتدئين: **[musammi.benjelloun.dev/guide](https://musammi.benjelloun.dev/guide)**.
+
+**وضع المصحف (تجريبي):** صفحة مصحف المدينة برواية ورش أمامك بدل شاشة الكلام، تُظهر الكتابة أو تُخفيها، فإذا أخفيتَها كُتب ما تقرؤه صواباً في موضعه، بلا فتح أبداً: **[musammi.benjelloun.dev/mushaf](https://musammi.benjelloun.dev/mushaf)** · [الشرح](docs/mushaf-mode.md).
 
 **تنبيه:** في الخطة المجانية قد يطّلع مراجعون من Google على ما يصلها (صوت تلاوتك ونصّها) وتستعمله في تحسين منتجاتها، ويشترط Google أن يكون صاحب المفتاح قد بلغ 18 سنة.
 
@@ -61,6 +63,23 @@ Warsh by default, and seven other riwayat of the King Fahd Complex mushafs.**
 | **Meanings and qiraʾat** | Ask what an ayah means and the teacher answers from Ibn Juzay's tafsir. In the owner's build, other tafsirs and the qiraʾat books (البدور الزاهرة، النشر، الإتقان) are read live from the owner's Shamela library. |
 | **Recorded mushaf** | «أسمعني…» plays murattal recordings from mp3quran.net, cut to the exact ayat when timings exist (e.g. al-Kushi and al-Husary for Warsh, al-Shuraim and al-Minshawi for Hafs). Al-Kushi can also start from a phrase, with word timings for all 114 surahs. «حسبك» stops the recording. |
 | **Memory** | Past sessions stay on the phone, and the teacher can go over your earlier mistakes. |
+
+### Mushaf mode (experimental)
+
+<p align="center">
+  <img src="docs/mushaf.png" width="220" alt="A page of the Madina Warsh mushaf in the app's font">
+  &nbsp;
+  <img src="docs/mushaf-hidden.png" width="220" alt="The same mode hidden: only the words recited right are written">
+</p>
+
+The mushaf page instead of the conversation, Warsh only: the Madina mushaf (King Fahd Complex, 1441) page by page,
+15 lines in the app's Warsh font, justified with even kashida as in print, ayah numbers in plain digits. Hide the writing and the app writes each
+word you recite right in its place; «أعِد» takes the stretch back. There is never a fath, since the page can be
+shown at any time (the eye, or press and hold). The page follows you: turn to one and recite from it, recite from
+elsewhere and it moves there, ask for al-Kushi and it turns to the page and follows him word by word. Prayer mode,
+exams and recordings work as above; there is no tafsir. Try it at
+**[musammi.benjelloun.dev/mushaf](https://musammi.benjelloun.dev/mushaf)**: a key already saved in the app works there too.
+How the pages are laid out and how the words are written: **[docs/mushaf-mode.md](docs/mushaf-mode.md)**.
 
 ## How it works
 

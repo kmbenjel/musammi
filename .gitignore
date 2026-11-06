@@ -12,3 +12,6 @@ server.log
 # wrangler dev: local secrets and state
 .dev.vars
 .wrangler/
+
+# guest keys of the mushaf mode (scripts/guest_keys.mjs)
+/.guests.json

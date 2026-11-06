@@ -46,6 +46,18 @@ fails += +!run('repeat back in 2:281', 2, 281, [b281.slice(0, 20), b281.slice(14
 const m = (a: number) => words(2, a);
 fails += +!run('move: end of 2:255 → start of 2:258', 2, 255, [m(255).slice(0, 10), m(255).slice(10), m(258).slice(0, 8)],
   (t) => !!t.skipped && t.skipped.to.a === 258 && t.skipped.moved);
+// one ayah left out while reciting on is a skip, not a move (recording 10-26 00:12: «لا، أنا قفزت الآية»)
+fails += +!run('drop: end of 2:255 → start of 2:257', 2, 255, [m(255).slice(0, 10), m(255).slice(10), m(257).slice(0, 8)],
+  (t) => !!t.skipped && t.skipped.to.a === 257 && !t.skipped.moved);
+// Session 2026-11-02T20-16-30-207Z: the transcript lost «اولائك بالمومنين واذا دعوا» (24:45 end, 24:46 start); the
+// rest of 24:46 «الي الله ورسوله ليحكم بينهم» is also in 24:49 and won there: a false skip and a «أعد»
+const n24 = (a: number) => words(24, a);
+fails += +!run('lost words before a phrase that 24:49 repeats', 24, 45, [n24(45).slice(0, 13), ['الى', 'الله', 'ورسوله', 'ليحكم', 'بينهم']],
+  (t) => t.position()!.ayah.a === 46 && !t.skipped);
+// a short ayah lost (80:3, 4 words) is followed silently: within feed's window, no skip is even seen
+const r = (a: number) => words(80, a);
+fails += +!run('short ayah lost: 80:2 → start of 80:4', 80, 1, [r(1), r(2), r(4)],
+  (t) => !t.skipped || t.skipped.moved);
 
 // Session 2026-10-29T06-13-24-561Z (Warsh): Hajj 5, «ذلك بأن الله هو الحق» (22:6) slips into 22:60 (same opening),
 // «أعد» ×6, then back to 22:6–7. The tracker stayed in 22:60 and a fath of 22:60 came at the end of 22:7, three times.

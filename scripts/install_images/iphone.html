@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@500;600&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="base.css">
+<style>
+  /* Safari on iOS 26 in its default «Compact» layout, mirrored for Arabic: Share sits in the ⋯ menu. */
+  .bar { position: absolute; bottom: 26px; inset-inline: 10px; height: 46px; display: flex; gap: 8px; align-items: center; }
+  .bar .circ, .bar .url { height: 46px; border-radius: 23px; background: rgba(58, 58, 64, .92); display: grid; place-items: center; }
+  .bar .circ { width: 46px; flex: none; }
+  .bar .url { flex: 1; direction: ltr; font: 500 14px/1 'Tajawal', sans-serif; color: #e6e6ea; }
+  .homeind { position: absolute; bottom: 8px; left: 50%; width: 110px; margin-left: -55px; height: 5px; border-radius: 3px; background: #e6e6ea; }
+  .pop {
+    position: absolute; bottom: 82px; left: 10px; width: 214px; background: rgba(44, 44, 48, .97); border-radius: 18px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .55); overflow: hidden;
+  }
+  .row { height: 44px; display: flex; align-items: center; gap: 12px; padding-inline: 16px; font: 500 17px/1 'Tajawal', sans-serif; color: #ececf0; }
+  .row + .row { border-top: 1px solid #3c3c42; }
+  .row .grow { flex: 1; }
+  .sheet { position: absolute; inset: auto 0 0; height: 372px; background: #1c1c1e; border-radius: 24px 24px 0 0; padding: 16px 12px 0; }
+  .head { display: flex; align-items: center; gap: 10px; }
+  .tile { width: 44px; height: 44px; border-radius: 11px; background: #101634; display: grid; place-items: center; flex: none; }
+  .tile::after { content: ''; width: 20px; height: 20px; border-radius: 50%; background: #d9b45f; box-shadow: 0 0 10px #d9b45f; }
+  .head .t { flex: 1; }
+  .head .t b { display: block; font: 600 17px/1.3 'Reem Kufi', sans-serif; color: #efe4cc; }
+  .head .t span { display: block; direction: ltr; text-align: right; font: 500 12px/1.3 'Tajawal', sans-serif; color: #9a9aa2; }
+  .x { width: 28px; height: 28px; border-radius: 50%; background: #3a3a40; display: grid; place-items: center; flex: none; }
+  .people { display: flex; justify-content: space-between; padding: 16px 6px 14px; border-bottom: 1px solid #333338; }
+  .people i { width: 50px; height: 50px; border-radius: 50%; background: #3a3a40; }
+  .group .row { font-size: 16px; padding-inline: 12px; white-space: nowrap; }
+  .group { margin-top: 12px; background: #2c2c2e; border-radius: 12px; overflow: hidden; }
+</style>
+</head>
+<body>
+<h1>آيفون <span class="dot"></span> <span class="sub">Safari</span></h1>
+<div class="panels">
+
+  <div class="col">
+    <div class="phone bottom">
+      <div class="app">
+        <span class="orb" style="top:14px"></span>
+      </div>
+      <div class="pop">
+        <div class="row"><span class="grow">مشاركة</span>
+          <svg width="20" height="22" viewBox="0 0 20 22" fill="none" stroke="#ececf0" stroke-width="1.8"><path d="M10 14V2M6 6l4-4 4 4M6 9H4v11h12V9h-2"/></svg></div>
+        <div class="row"><span class="grow">إضافة إشارة مرجعية</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ececf0" stroke-width="1.8"><path d="M4 5c3-1.5 5.5-1.5 8 0 2.5-1.5 5-1.5 8 0v14c-3-1.5-5.5-1.5-8 0-2.5-1.5-5-1.5-8 0zM12 5v14"/></svg></div>
+        <div class="row"><span class="grow">علامة تبويب جديدة</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ececf0" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg></div>
+      </div>
+      <div class="bar">
+        <div class="circ"><svg width="12" height="20" viewBox="0 0 12 20" fill="none" stroke="#e6e6ea" stroke-width="2.4"><path d="M2 2l8 8-8 8"/></svg></div>
+        <div class="url">benjelloun.dev</div>
+        <div class="circ"><svg width="24" height="6" viewBox="0 0 24 6" fill="#e6e6ea"><circle cx="3" cy="3" r="2.6"/><circle cx="12" cy="3" r="2.6"/><circle cx="21" cy="3" r="2.6"/></svg></div>
+      </div>
+      <div class="homeind"></div>
+      <div class="ring" style="left:4px; bottom:20px; width:58px; height:58px; border-radius:50%"><span class="badge" style="right:-18px; top:-12px">1</span></div>
+      <div class="ring" style="left:6px; bottom:168px; width:222px; height:52px"><span class="badge" style="right:-14px">2</span></div>
+    </div>
+    <p class="cap">زر <bdi>⋯</bdi> ثم «مشاركة»</p>
+    <p class="small">أو زر المشاركة إن ظهر في الشريط</p>
+  </div>
+
+  <div class="col">
+    <div class="phone bottom">
+      <div class="app">
+        <span class="orb" style="top:-40px"></span>
+      </div>
+      <div class="dim"></div>
+      <div class="sheet">
+        <div class="head">
+          <div class="tile"></div>
+          <div class="t"><b>المُسَمِّع</b><span>musammi.benjelloun.dev</span></div>
+          <div class="x"><svg width="10" height="10" viewBox="0 0 10 10" stroke="#c8c8cc" stroke-width="1.8"><path d="M1 1l8 8M9 1L1 9"/></svg></div>
+        </div>
+        <div class="people"><i></i><i></i><i></i><i></i></div>
+        <div class="group">
+          <div class="row"><span class="grow">نسخ</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ececf0" stroke-width="1.8"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2"/></svg></div>
+          <div class="row"><span class="grow">إضافة إلى الشاشة الرئيسية</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ececf0" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg></div>
+          <div class="row"><span class="grow">إضافة إلى قائمة القراءة</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ececf0" stroke-width="1.8"><circle cx="7" cy="12" r="4"/><circle cx="17" cy="12" r="4"/><path d="M11 12h2"/></svg></div>
+        </div>
+      </div>
+      <div class="ring" style="left:6px; bottom:129px; width:274px; height:52px"><span class="badge" style="right:-14px">3</span></div>
+    </div>
+    <p class="cap">«إضافة إلى الشاشة الرئيسية»</p>
+    <p class="small">ثم «إضافة»</p>
+  </div>
+
+</div>
+</body>
+</html>

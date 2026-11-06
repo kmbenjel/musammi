@@ -4,7 +4,7 @@
 // Run:   node /tmp/hw/phrase.mjs   (from the repo root; exit 1 on a failure)
 import { existsSync, readFileSync } from 'node:fs';
 import { bestHits, findPhrase } from '../client/src/live/phrase';
-import { jumlaOf, recitationSpan, wordsSpan, type AyahWords } from '../client/src/live/audio';
+import { jumlaOf, namesAnEnd, recitationSpan, wordsSpan, type AyahWords } from '../client/src/live/audio';
 import type { Ayah, HafsDiffs, SurahInfo } from '../client/src/live/reference';
 
 const R = 'client/public/riwayat/warsh/';
@@ -136,6 +136,11 @@ const run = async () => {
   r = await recitationSpan(m, { surah: 23, from_ayah: 50, to_ayah: 95 }, 23);
   check('range: last_read is not cut', 'span' in r && !r.note, r);
 };
+// a number of ayat as spoken and transcribed (2026-11-03 16:04: «ثلاثة آيات» played one ayah, twice)
+for (const said of ['ثلاث آيات', 'ثلاثة آيات', 'خمسة آيات', 'الآيات الثلاث الأولى', 'من الأولى إلى الثالثة', 'آيتين'])
+  check(`names an end: «${said}»`, namesAnEnd(said));
+for (const said of ['شغل الآية التي وقفت عندها', 'الآية التالية', 'اقرأ الآية التي بعدها'])
+  check(`no end: «${said}»`, !namesAnEnd(said));
 run().then(() => {
   console.log(fails ? `${fails} failing` : 'all ok');
   process.exit(fails ? 1 : 0);

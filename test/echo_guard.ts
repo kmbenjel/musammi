@@ -20,6 +20,7 @@ function reply(heard: string[], { said = SAID, after = 1, answer = REPLY, prayin
   const s: any = new RecitationSession({} as any, ev);
   s.ws = { readyState: 1, send: () => {} };
   s.ready = true;
+  s.heardWords = 4; // the stretch's words came in (the guards of 2026-11-06 mute a remark on nothing)
   s.praying = praying;
   s.startTurnAudio = () => {};
   s.reopen = () => {};

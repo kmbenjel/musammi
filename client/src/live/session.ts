@@ -22,7 +22,8 @@ import { DEFAULT_PAUSES, PauseSegmenter } from './pauses';
 import { readRunAfter, type ReadRun, formatReference, MushafLocator, PositionTracker, rangeFrom, readsLike, type Ayah, type HafsDiffs, type SurahInfo } from './reference';
 import { normalizeTranscript } from '../utils/arabic';
 import { libraryNote, riwayaBrief } from './prompt';
-import { namesAnEnd, recitationSpan } from './audio';
+import { namesAnEnd, phraseSpan, recitationSpan, reciterOf, RECITERS, recitersText, surahWords, type AyahWords, type Span } from './audio';
+import { FathPlayer } from './fath';
 import { riwayaOf, type RiwayaKey } from './riwayat';
 import { frameLevel, holdsStopWord, StopListener } from './stopword';
 
@@ -58,6 +59,18 @@ export interface SessionEvents {
   onPrayer: (on: boolean) => void;
   onMushafAudio: (label: string | null) => void; // the recorded mushaf is playing (a tap or «حسبك» stops it)
   onEvent: (what: string) => void; // kept with the saved session, to see later why a session stopped
+  // The mushaf mode (deps.mode): the page is the screen.
+  onWords?: (words: WordAt[], undo: boolean) => void; // recited right (a hidden page writes them); undo: a «أعد» fell on them
+  onMiss?: (at: WordAt | null) => void; // where the «أعد» fell
+  onPlace?: (at: WordAt) => void; // the next word to recite moved: the page follows
+  onShow?: (ayahId: number, recording: boolean) => void; // turn to this ayah's page and show it (show_ayah, a recording)
+  onPlayWord?: (at: WordAt | null) => void; // the word the recording is at
+}
+
+/** A printed word of the mushaf: the ayah's id and the word (0-based, tokens with letters). */
+export interface WordAt {
+  id: number;
+  k: number;
 }
 
 export interface SessionDeps {
@@ -71,7 +84,11 @@ export interface SessionDeps {
   library: (book: string, query: string) => Promise<Record<string, unknown>>;
   nextExamQuestion: (opts: { surah?: number; juz?: number }) => Promise<{ n: number; title: string; cue: string; question: string; expected: string; ayat: { s: number; a: number }[] }>;
   resume?: Place & { ago: number }; // the last session stopped here a few minutes ago (ago: minutes)
+  options?: Options; // the saved settings (set_option with save=true), applied at the start
+  setOption?: (name: OptionName, value: string, save: boolean) => void; // the app's side of a setting (the screen, storage)
   record?: (stream: MediaStream) => () => void; // keeps the session's audio (recorder.ts, the owner only); returns its stop
+  // 'mushaf': the page is on the screen and can be shown at any time, so there is never a fath (user, 2026-11-03)
+  mode?: 'mushaf';
 }
 
 /** Where the reciter is: the ayah, and how many of its words he has recited. */
@@ -89,8 +106,7 @@ const QUOTA = /quota|RESOURCE_EXHAUSTED|rate.?limit|exceeded/i;
 const QUOTA_MSG = 'انتهت الحصة المجانية من Gemini لهذا اليوم. تتجدّد غداً إن شاء الله.';
 const IDLE_MS = 3 * 60 * 1000; // no recitation and no reply from the teacher for this long → end (saves the quota)
 const PRAYER_IDLE_MS = 20 * 60 * 1000; // sujud, tashahhud and du'a are long silences
-const LAPSE_MS = 3500; // in salat: silence inside an ayah this long → the fath
-const LAPSE_OUT_MS = 5000; // outside salat the reciter may be thinking: a little longer
+const LAPSE_MS = 3500; // in salat: silence inside an ayah this long → the fath (outside salat only when asked, user 2026-11-06)
 const FATH_ASKED = /(^| )(ا?فتح|تفتح|ما بعدها|ما بعده)( |$)/; // «افتح» / «افتح عليّ» / «ما بعدها؟»
 const IDLE_MSG = 'انتهت الجلسة تلقائياً بعد 3 دقائق دون تلاوة أو حوار، توفيراً للحصة.';
 // Takbir starts the salat and taslim ends it: the reciter does not have to announce the prayer.
@@ -98,8 +114,15 @@ const TAKBIR = /الله ?اكبر/;
 const TASLIM = /السلام عليكم/;
 const plain = (t: string) =>
   t.replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه');
-const STANDING = /كل مره|دائما/; // a request that holds for the requests after it
-const QUICK_TOOLS = new Set(['open_mushaf', 'show_ayah', 'set_riwaya', 'prayer_mode', 'play_recitation']);
+const STANDING = /كل مره|دائما|وهكذا/;
+// Words of talk, not of the mushaf, in his stretch («هل أخطأت؟», «ماذا أعيد؟», «صحيح»: each got «أعد» on 2026-11-05/06).
+// Only with a stretch that hardly reads at his place: «لا» and «أنا» are in the Quran too.
+const TALK = /(^| )(هل|ماذا|لماذا|كيف|صحيح|طيب|يا شيخ|اعيد|الخطا|انا|قلت|نعم|اسف|عفوا|شكرا)( |$)/; // a request that holds for the requests after it («…تضيف ثلاث آيات أخرى… وهكذا», 2026-11-03 16:04)
+const QUICK_TOOLS = new Set(['open_mushaf', 'show_ayah', 'set_riwaya', 'prayer_mode', 'play_recitation', 'set_option']);
+// Settings the reciter changes by voice (set_option): kept here for the session, by the app when saved.
+export type OptionName = 'reciter' | 'text' | 'voice' | 'ayat_per_play';
+export type Options = Partial<Record<OptionName, string>>;
+const VOICE_SCALE: Record<string, number> = { low: 0.6, normal: 1, loud: 1.35 };
 // Reconnecting: nothing may hang the session or loop for ever.
 const CONNECT_MS = 15000; // one attempt (token, socket, setup) gets this long
 const RECONNECT_MS = 60000; // after a drop, keep trying this long (a phone switching networks)
@@ -130,6 +153,14 @@ const STALLED_BYTES = 90_000; // ~2 s of audio in the socket's queue...
 const STALLED_MS = 1000; // ...for this long (a burst of held audio passes through the queue in a moment)
 const VOICE_GAIN = 0.8;
 const SOFT_GAIN = 0.45; // «أعِد»، «أحسنت»: a quiet word over the recitation
+const WORD_GAIN = 0.6; // the recorded correction word (client/public/voice/)
+const REPEAT_MS = 30000; // the same remark again within this, with nothing new heard: not played (user 2026-11-06)
+const AFTER_CLIP_MS = 4000; // after the recorded fath the model may still whisper it: not played
+const ASKED_MS = 12000; // a tool's answer or an app note may be answered a generation later: a remark this soon after one is not «on nothing»
+// The correction word is a recording played by the client, not the model's voice: always the same calm word, and the
+// model's addition after it (the reason, the right words) is never heard: «أعد» stays bare (user 2026-11-06).
+const WORDS = { aad: { file: 'aad', text: 'أعِد' }, subhan: { file: 'subhan', text: 'سبحان الله' } } as const;
+type Word = keyof typeof WORDS;
 const ECHO_AFTER_S = 5; // his transcript comes when the stretch closes, so its reply can start this long after the audio ended
 const ECHO_SHARE = 0.85; // of the words heard, so many are the teacher's own (not 4 of 5: «جزاك الله خيرا يا شيخ» was his)
 
@@ -232,6 +263,20 @@ export class RecitationSession {
   private lastCut: ReturnType<PositionTracker['mark']> | null = null; // the tracker at the last cut, and at the one before it,
   private stretchFrom: ReturnType<PositionTracker['mark']> | null = null; // where the stretch just closed began
   private lastTeacherAt = 0;
+  private lastSaid = { text: '', at: 0, word: '' as Word | '' }; // the last remark played (repeat guard)
+  private noteAt = 0; // when an app note last went to the model: it may answer it with nothing heard
+  private toolAt = 0; // when a tool's answer last went to the model (its spoken answer can come a generation later)
+  private heardWords = 0; // the reciter's words since the last generation
+  private mutedWhy = '';
+  private recitedLast = false; // his last finished stretch read at the tracker's place (not talk)
+  private talkedLast = false; // his last finished stretch had a word of talk and hardly read at his place
+  private wordPlayed: Word | '' = ''; // this turn's reply is the recorded word: the model's audio is dropped
+  private words = new Map<Word, Promise<AudioBuffer | null>>();
+  private wordBufs = new Map<Word, AudioBuffer>(); // the decoded ones, for a synchronous play
+  private fath = new FathPlayer(() => this.outCtx, (w) => this.ev.onEvent(w));
+  private fathClip = false; // the recorded fath is playing: the turn stays closed and the mic goes nowhere
+  private fathClipEnd = 0;
+  private prefetched = ''; // the ayah whose recording is in memory for a fath
   private closing = false;
   private held: string[] = [];
   private idleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -260,6 +305,7 @@ export class RecitationSession {
   private heardText = ''; // the transcript since the last generation, and the tracker when it began
   private heardFrom = 0;
   private muted = false; // in salat: this turn is not a fath (a stray remark), so it is not played
+  private holding = false; // the riwaya sheet is open: the mic goes nowhere, the teacher is not played
   private current: { s: number; a: number } | null = null;
   // A quick restart goes on from the ayah the last session stopped in: until he moves on from it, opening a similar
   // ayah elsewhere that he did not announce is a slip into a mutashabih (session 12:55: Yunus 75 for al-Muʾminun 45).
@@ -272,9 +318,22 @@ export class RecitationSession {
   private youMatched = 0;
   private lastRead: ReadRun | null = null; // the ayat he read last in one run
   private lastAsked = ''; // his last finished stretch: a request comes in it or in the one still open
+  // mushaf mode: the tracker's hits already written, and those of the stretch not yet judged (a «أعد» takes them back)
+  private hitsSeen = 0;
+  private hitsOf: Ayah[] | null = null;
+  private stretchHits: number[] = [];
+  private lastJudged = -1; // the last word of the last stretch that passed
   private standing = ''; // what he asked for every time, this session
+  private prefReciter = ''; // the default reciter for playback and the fath (set_option)
+  private voiceScale = 1; // the teacher's volume (set_option voice)
 
-  constructor(private deps: SessionDeps, private ev: SessionEvents) {}
+  constructor(private deps: SessionDeps, private ev: SessionEvents) {
+    for (const [k, v] of Object.entries(deps.options ?? {})) if (v) this.applyOption(k as OptionName, v);
+  }
+
+  private get noFath() {
+    return this.deps.mode === 'mushaf';
+  }
 
   /** Call from a user gesture (tap): audio contexts must be created/resumed inside it. */
   async start() {
@@ -297,6 +356,7 @@ export class RecitationSession {
     this.micCtx.createMediaStreamSource(this.stream).connect(tap);
     this.stream.getAudioTracks()[0]?.addEventListener('ended', () => this.ev.onEvent('mic-ended'));
     this.stopRecording = this.deps.record?.(this.stream) ?? null;
+    for (const w of Object.keys(WORDS) as Word[]) this.loadWord(w);
     document.addEventListener('visibilitychange', this.onVisible);
     await this.keepScreenOn();
     this.resume();
@@ -332,6 +392,7 @@ export class RecitationSession {
     this.ev.onPosition(`سورة ${name} · من الآية ${at.a}`);
     this.ev.onReciting(this.current);
     this.ev.onEvent(`resumed ${at.s}:${at.a} w${r.w} (${r.ago} min after)`);
+    this.prefetchFath();
     const said = r.w > 0 ? `، في وسطها، والكلمات التالية: «${this.tracker.nextPhrase()}»` : '';
     const ago = r.ago < 1 ? 'بعد أقل من دقيقة' : r.ago === 1 ? 'بعد دقيقة' : r.ago === 2 ? 'بعد دقيقتين' : `بعد ${r.ago} دقائق`;
     const ref = formatReference(this.tracker.ayat.slice(0, 22), m.surahs, m.diffs, short);
@@ -368,6 +429,7 @@ export class RecitationSession {
     }
     this.ws = null;
     this.stopPlayback();
+    this.fath.stop();
     this.stopRecording?.();
     this.stopRecording = null;
     this.stream?.getTracks().forEach((t) => t.stop());
@@ -407,6 +469,10 @@ export class RecitationSession {
     this.praying = on;
     this.ev.onPrayer(on);
     this.ev.onEvent(on ? 'prayer-on' : 'prayer-off');
+    // leaving salat starts the 3 min idle clock afresh: the quiet recitation of a prayer often brings no transcript, so
+    // the last recitation may be far behind, and the session ended the moment the model called prayer_mode off
+    // (2026-11-04 06:08, 419 s, while he prayed 13 more minutes)
+    this.lastActiveAt = Date.now();
     if (note) this.send({ realtimeInput: { text: note } });
   }
 
@@ -631,7 +697,11 @@ export class RecitationSession {
   }
 
   private send(obj: unknown) {
-    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(obj));
+    // ے is how the KFGQPC Warsh/Qaloon fonts write a final ya (فِے = فِي, ~3000 words): the model does not read it as
+    // one, and spoke «شُرَكَآءِے» (41:46) as «شركاؤو». The screen keeps the mushaf's own letter.
+    const s = JSON.stringify(obj);
+    if ((obj as { realtimeInput?: { text?: string } })?.realtimeInput?.text) this.noteAt = Date.now();
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(s.includes('ے') ? s.replaceAll('ے', 'ي') : s);
   }
 
   // ── mic & turns ────────────────────────────────────────────────────────
@@ -640,6 +710,7 @@ export class RecitationSession {
     for (let i = 0; i < f32.length; i++) pcm[i] = Math.max(-1, Math.min(1, f32[i])) * 0x7fff;
     const data = toBase64(new Uint8Array(pcm.buffer));
     const now = Date.now();
+    if (this.holding) return;
     if (this.ready && now - Math.max(this.lastActiveAt, this.lastRecitedAt) > (this.praying ? PRAYER_IDLE_MS : IDLE_MS)) {
       this.stop();
       this.ev.onState('closed', IDLE_MSG);
@@ -686,6 +757,7 @@ export class RecitationSession {
       this.stopListener?.feed(data, frameLevel(pcm));
       return;
     }
+    if (this.fathClip) return; // the recorded fath plays: its sound must not come back as recitation
 
     if (!this.ready || this.closing) {
       this.held.push(data);
@@ -697,11 +769,12 @@ export class RecitationSession {
     }
     this.send({ realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data } } });
     if (this.seg.speaking) this.lapseSent = false;
-    // In salat the reciter cannot ask for help: a long stop inside an ayah is reported as a turn of its own.
+    // In salat the reciter cannot ask for help: a long stop inside an ayah is the fath. Outside salat he asks («افتح»):
+    // the 5 s fath on his own silence was dropped (user 2026-11-06, it came while he was thinking).
     // Not when the last stretch does not read at the tracker's place (a fath from there would be wrong words).
-    if (!deaf && (this.praying || this.reciting) && !this.lapseSent && this.seg.silentMs >= (this.praying ? LAPSE_MS : LAPSE_OUT_MS) &&
+    if (!deaf && !this.noFath && this.praying && !this.lapseSent && this.seg.silentMs >= LAPSE_MS &&
         this.tracker.midAyah() && this.tracker.leftInAyah() >= 2 && this.tracker.onTrack && now - this.lastRecitedAt < 15000) {
-      this.askFath(this.praying ? 'توقّف المصلي' : 'توقّف القارئ وسط الآية');
+      this.askFath('توقّف المصلي');
       return;
     }
     if (cut || (this.cutOwed && this.seg.silentMs >= DEFAULT_PAUSES.pauseMs)) {
@@ -733,6 +806,38 @@ export class RecitationSession {
     this.ev.onLink(link);
   }
 
+  /** The reply is the correction word: «أعد…» anywhere, «سبحان الله…» in salat (user 2026-11-06: gentler there). */
+  private redoWord(norm: string): Word | '' {
+    if (norm.startsWith('اعد')) return 'aad';
+    if (this.praying && norm.startsWith('سبحان الله')) return 'subhan';
+    return '';
+  }
+
+  /** Why this reply is not played (empty: it is). Checked on its first words, before any audio plays. */
+  private whyMute(norm: string, first: string, redo: Word | ''): string {
+    if (this.ownEcho()) return 'echo';
+    // the fath was just played from the recording: the model's own whisper of it is not wanted
+    if (this.fathClip || Date.now() - this.fathClipEnd < AFTER_CLIP_MS) return 'fath played';
+    // nothing came in since its last generation and the app asked it nothing: a remark on nothing (greetings on
+    // silence, «أعد» again on a breath; sessions 2026-11-05 01:38, 2026-11-06 09:27)
+    const asked = this.afterTool || this.toolPending || this.fathPending || Date.now() - this.toolAt < ASKED_MS || Date.now() - this.noteAt < ASKED_MS || (!!this.exam && !redo);
+    if (this.heardWords === 0 && !asked) return 'nothing heard';
+    // the same remark again, with hardly anything new heard
+    const recent = Date.now() - this.lastSaid.at < REPEAT_MS;
+    if (recent && redo && this.lastSaid.word === redo && this.heardWords < 2) return 'repeat';
+    if (recent && !redo && norm === this.lastSaid.text && this.heardWords < 3) return 'repeat';
+    if (this.praying) return redo ? (this.stretchWasRight() ? 'breath' : '') : this.noFath || !this.tracker.isNear(first) ? 'not a fath' : '';
+    if (redo) return this.breathNotSlip() ? 'breath' : this.talkedLast ? 'talk' : '';
+    // mushaf words at his place, unasked, while he recites: a fath he did not ask for (user 2026-11-06)
+    if (this.recitedLast && !this.fathPending && !this.afterTool && !this.exam && this.isQuoting(norm)) return 'unasked fath';
+    return '';
+  }
+
+  /** Three or more words that read in order at a place near the reciter's. */
+  private isQuoting(norm: string): boolean {
+    return norm.split(' ').filter((w) => w.length >= 2).length >= 3 && this.tracker.asPrinted(norm) !== undefined;
+  }
+
   /** Every word of the last stretch matched the mushaf and it stopped inside an ayah: a «أعد» there is a false
    *  alarm (the model takes a stretch cut at a pause for an unfinished, wrong one). */
   private stretchWasRight(): boolean {
@@ -748,23 +853,103 @@ export class RecitationSession {
     return !!this.stretchFrom && this.tracker.readRight(this.stretchFrom);
   }
 
-  /** In salat: the reciter stopped or repeated where they stopped (asking for what follows) → the fath. */
+  /** The fath: in salat when the reciter stopped or repeated where they stopped (asking for what follows), out of it
+   *  when asked. The words come from the default reciter's recording (fath.ts); only a recording without word timings
+   *  for this surah leaves them to the model's whisper. */
   private askFath(what: string) {
     this.lapseSent = true; // one fath per stop
-    this.fathPending = true;
     const next = this.tracker.nextPhrase();
     this.ev.onEvent(`fath? (${what}) ${next}`);
     this.send({ realtimeInput: { activityEnd: {} } });
     this.answered = false;
-    this.send({ realtimeInput: { text: `(ملاحظة آلية من التطبيق: ${what}. قل همساً هذه الكلمات وحدها كما هي مضبوطة، ثم اسكت: «${next}»)` } });
     this.closing = true;
     this.finishYou();
     clearTimeout(this.hardTimer);
+    this.playFath(what, next);
+  }
+
+  private async playFath(what: string, next: string) {
+    const span = await this.fathSpan().catch(() => null);
+    if (span && !this.stopped) {
+      this.fathClip = true;
+      this.send({ realtimeInput: { text: `(ملاحظة آلية من التطبيق: ${what}. فتح عليه التطبيق بصوت القارئ المسجّل بهذه الكلمات: «${next}». لا تقل شيئاً، واسمعه يكمل.)` } });
+      this.ev.onEvent(`fath clip ${span.reciter} ${span.start.toFixed(2)}–${span.end.toFixed(2)}${this.fath.ready(span) ? '' : ' (not prefetched)'}`);
+      this.ev.onTeacher(next, next);
+      this.lastTeacherAt = this.lastActiveAt = Date.now();
+      try {
+        await this.fath.play(span, VOICE_GAIN);
+      } catch (e) {
+        this.ev.onEvent('fath clip failed: ' + String(e).slice(0, 80));
+      }
+      this.fathClip = false;
+      this.fathClipEnd = Date.now();
+      if (!this.stopped) this.reopen();
+      return;
+    }
+    this.ev.onEvent('fath: no recording for these words, the model whispers it');
+    this.fathPending = true;
+    this.send({ realtimeInput: { text: `(ملاحظة آلية من التطبيق: ${what}. قل همساً هذه الكلمات وحدها كما هي مضبوطة، ثم اسكت: «${next}»)` } });
     this.hardTimer = setTimeout(() => this.reopen(), 5000);
   }
 
+  /** The recording of the fath's words (tracker.fathPlace) in the riwaya's default reciter, when it has word timings. */
+  private async fathSpan(): Promise<Span | null> {
+    const m = this.deps.mushaf;
+    const p = this.tracker.fathPlace();
+    if (!p) return null;
+    const r = await phraseSpan(m.key, p.ayah.s, { ayah: p.ayah.a, word: p.word }, { ayah: p.ayah.a, word: p.word + p.count - 1 }, { at: 'word', until: 'word', reciter: this.prefReciter || undefined });
+    return 'error' in r || !r.exact ? null : r;
+  }
+
+  /** The recording of the ayah he is in, fetched now so that a fath in it starts at once (once per ayah). */
+  private prefetchFath() {
+    const at = this.tracker.current();
+    const m = this.deps.mushaf;
+    if (!at || !m || this.noFath || this.exam) return;
+    const key = `${m.key}:${at.s}:${at.a}`;
+    if (key === this.prefetched) return;
+    this.prefetched = key;
+    phraseSpan(m.key, at.s, { ayah: at.a }, undefined, { at: 'jumla', reciter: this.prefReciter || undefined })
+      .then((r) => !('error' in r) && r.exact && this.fath.prefetch(r.url, r.start, r.end))
+      .catch(() => {});
+  }
+
+  // ── the recorded words («أعِد», «سبحان الله») ──
+  private loadWord(w: Word): Promise<AudioBuffer | null> {
+    let p = this.words.get(w);
+    if (!p) {
+      p = fetch(`/voice/${WORDS[w].file}.mp3`)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+        .then((b) => this.outCtx!.decodeAudioData(b))
+        .then((buf) => (this.wordBufs.set(w, buf), buf))
+        .catch((e) => {
+          this.ev.onEvent(`voice ${w} failed: ${String(e).slice(0, 60)}`);
+          this.words.delete(w);
+          return null;
+        });
+      this.words.set(w, p);
+    }
+    return p;
+  }
+
+  /** Play the recorded word now, if it is loaded (else the model's own voice says it). */
+  private sayWord(w: Word): boolean {
+    const ctx = this.outCtx;
+    const buf = this.wordBufs.get(w);
+    if (!ctx || !buf) return false; // not decoded yet: the model's own voice says it this time
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const g = ctx.createGain();
+    g.gain.value = WORD_GAIN * this.voiceScale;
+    src.connect(g).connect(ctx.destination);
+    src.start();
+    this.ev.onSpeaking(true);
+    src.onended = () => this.ev.onSpeaking(false);
+    return true;
+  }
+
   private reopen() {
-    if (!this.closing || !this.ready || this.toolPending || this.switching) return;
+    if (!this.closing || !this.ready || this.toolPending || this.switching || this.fathClip) return;
     if (this.handoverDue()) {
       clearTimeout(this.idleTimer);
       clearTimeout(this.hardTimer);
@@ -777,6 +962,7 @@ export class RecitationSession {
     clearTimeout(this.hardTimer);
     this.fathPending = false;
     this.closing = false;
+    this.judged();
     this.send({ realtimeInput: { activityStart: {} } });
     for (const data of this.held) this.send({ realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data } } });
     this.held = [];
@@ -786,7 +972,11 @@ export class RecitationSession {
 
   private finishYou() {
     if (this.you) {
-      this.ev.onYou(this.you, true, this.youInMushaf());
+      const heard = plain(this.you).split(/\s+/).filter((w) => w.length >= 2).length;
+      const matched = this.tracker.matched - this.youMatched;
+      this.recitedLast = heard >= 2 && matched >= heard * 0.6;
+      this.talkedLast = heard >= 1 && TALK.test(plain(this.you)) && matched < heard * 0.5;
+      this.ev.onYou(this.you.trim(), true, this.youInMushaf()); // untrimmed, App's already-shown check missed it: lines twice
       this.lastAsked = this.you;
       if (STANDING.test(plain(this.you)) && namesAnEnd(this.you)) this.standing = this.you; // «في كل مرة آيتين»
       const first = this.tracker.ayahAt(this.youFrom);
@@ -855,7 +1045,11 @@ export class RecitationSession {
           this.youMatched = this.tracker.matched;
         }
         if (!this.heardText) this.heardFrom = this.tracker.matched;
-        if (this.tracker.feed(t + ' ')) {
+        const moved = this.tracker.feed(t + ' ');
+        this.reveal(moved);
+        this.heardWords += plain(t).split(/\s+/).filter((w) => w.length >= 2).length;
+        if (moved) {
+          this.prefetchFath();
           this.lastRecitedAt = Date.now();
           this.reciting = true;
           if (this.praying) this.remember(t);
@@ -878,7 +1072,7 @@ export class RecitationSession {
         // ended «after 3 minutes without recitation» while he recited 23:52–62 from a place opened at 23:81)
         if (plain(this.you).trim().split(/\s+/).length >= 3) this.lastActiveAt = Date.now();
         // «افتح»: the exact words come from the app, so the teacher never says them from memory
-        if (FATH_ASKED.test(plain(this.you).trim()) && plain(this.you).trim().split(/\s+/).length <= 4 && (this.tracker.at() > 0 || this.exam)) {
+        if (!this.noFath && FATH_ASKED.test(plain(this.you).trim()) && plain(this.you).trim().split(/\s+/).length <= 4 && (this.tracker.at() > 0 || this.exam)) {
           this.lapseSent = false;
           this.askFath('طلب القارئ الفتح');
         }
@@ -903,26 +1097,33 @@ export class RecitationSession {
       // a reply that turns out longer than a remark goes back to the normal level
       if (this.voiced && this.turnGain && this.outCtx && cleanSpoken(this.teacher).split(/\s+/).length > 3)
         this.turnGain.gain.setTargetAtTime(VOICE_GAIN, this.outCtx.currentTime, 0.3);
-      const first = normalizeTranscript(cleanSpoken(this.teacher)).split(' ')[0];
-      const again = first?.startsWith('اعد');
-      if (!this.voiced && !this.muted && first && this.ownEcho()) {
-        this.ev.onEvent('echo: ' + this.heardText.trim());
-        this.muted = true;
-        this.pending = [];
-      }
-      if (!this.voiced && !this.muted && first && (this.praying ? (again ? this.stretchWasRight() : !this.tracker.isNear(first)) : again && this.breathNotSlip())) {
-        this.muted = true;
-        this.pending = [];
+      const norm = normalizeTranscript(cleanSpoken(this.teacher));
+      const first = norm.split(' ')[0];
+      const redo = this.redoWord(norm);
+      if (!this.voiced && !this.muted && first) {
+        const why = this.whyMute(norm, first, redo);
+        if (why) {
+          if (why === 'echo') this.ev.onEvent('echo: ' + this.heardText.trim());
+          this.mutedWhy = why;
+          this.muted = true;
+          this.pending = [];
+        }
       }
       if (this.voiced && this.spoken) this.spoken.text = this.teacher;
       if (!this.voiced && !this.muted && cleanSpoken(this.teacher)) {
         this.voiced = true;
         this.lastTeacherAt = Date.now();
         this.lastActiveAt = Date.now();
-        this.startTurnAudio(cleanSpoken(this.teacher));
-        if (this.outCtx) this.spoken = { text: this.teacher, t0: Math.max(this.outCtx.currentTime, this.playEnd) };
-        this.pending.forEach((d) => this.play(d));
-        this.pending = [];
+        if (redo && this.sayWord(redo)) {
+          // the recorded word plays; the model's audio for this turn (the word, and anything after it) is dropped
+          this.wordPlayed = redo;
+          this.pending = [];
+        } else {
+          this.startTurnAudio(cleanSpoken(this.teacher));
+          if (this.outCtx) this.spoken = { text: this.teacher, t0: Math.max(this.outCtx.currentTime, this.playEnd) };
+          this.pending.forEach((d) => this.play(d));
+          this.pending = [];
+        }
       }
     }
     if (sc.generationComplete || sc.turnComplete) {
@@ -931,8 +1132,15 @@ export class RecitationSession {
       this.ev.onEvent(`gen heard=${this.heard} said=${said.length}${this.afterTool ? ' afterTool' : ''}`);
       this.heard = 0;
       this.heardText = '';
-      if (this.muted) this.ev.onEvent('muted: ' + said);
+      const redo = this.redoWord(normalizeTranscript(said));
+      if (this.muted) this.ev.onEvent(`muted${this.mutedWhy ? ' (' + this.mutedWhy + ')' : ''}: ` + said);
+      else if (this.wordPlayed) this.teacherSaid(WORDS[this.wordPlayed].text); // the word alone: what was played
       else if (said) this.teacherSaid(said);
+      if (!this.muted && said) this.lastSaid = { text: normalizeTranscript(said), at: Date.now(), word: redo };
+      if (!this.muted && redo) this.missed();
+      this.heardWords = 0;
+      this.mutedWhy = '';
+      this.wordPlayed = '';
       this.muted = false;
       this.teacher = '';
       this.voiced = false;
@@ -958,7 +1166,7 @@ export class RecitationSession {
         // stayed silent: that is asking for what follows (istiṭʿām), not a correction after «أعد»
         const mark = this.stretchMark;
         this.stretchMark = null;
-        if (this.praying && mark && !said && Date.now() - this.lastTeacherAt > 10000 && this.tracker.matched - mark.matched >= 2 &&
+        if (this.praying && !this.noFath && mark && !said && Date.now() - this.lastTeacherAt > 10000 && this.tracker.matched - mark.matched >= 2 &&
             this.tracker.at() <= mark.reached && this.tracker.midAyah() && this.tracker.leftInAyah() >= 1 && this.tracker.onTrack)
           this.askFath('كرّر المصلي ما وقف عنده');
       }
@@ -997,6 +1205,125 @@ export class RecitationSession {
     this.unplaced = [...this.unplaced, ...normalizeTranscript(chunk).split(' ').filter((w) => w.length >= 2)].slice(-14);
   }
 
+  // ── mushaf mode ────────────────────────────────────────────────────────
+  /** The words the tracker matched since the last call are written; the page follows the next word to recite. */
+  private reveal(moved: boolean) {
+    if (!this.ev.onWords) return;
+    const t = this.tracker;
+    if (t.ayat !== this.hitsOf) {
+      this.hitsOf = t.ayat;
+      this.hitsSeen = 0;
+      this.stretchHits = [];
+      this.lastJudged = -1;
+    }
+    const fresh = t.hits.slice(this.hitsSeen);
+    this.hitsSeen = t.hits.length;
+    if (fresh.length) {
+      this.stretchHits.push(...fresh);
+      this.ev.onWords(fresh.map((k) => t.printedAt(k)).filter((x): x is WordAt => !!x), false);
+    }
+    const next = t.printedAt(t.at()) ?? t.printedAt(t.at() - 1); // the range's end: its last word
+    if (moved && !this.exam && !this.mushafAudio && next) this.ev.onPlace?.(next);
+  }
+
+  /** The stretch passed with no «أعد»: words between two it matched were said too (the transcript drops some), and
+   *  so were one or two between it and the stretch before it (one heard wrong at the cut: «ليحكم» as «وما»). */
+  private judged() {
+    const hits = this.stretchHits;
+    this.stretchHits = [];
+    if (!this.ev.onWords || !hits.length || this.tracker.ayat !== this.hitsOf) return;
+    let lo = Math.min(...hits);
+    const hi = Math.max(...hits);
+    const before = this.lastJudged;
+    this.lastJudged = Math.max(before, hi);
+    if (hi - lo > hits.length + 6) return; // a jump, not a few dropped words
+    if (before >= 0 && lo - before >= 2 && lo - before <= 3) lo = before + 1;
+    while (lo > 0 && this.tracker.tooShort(lo - 1)) lo--; // «صٓۖ وَالْقُرْءَانِ»: the letter before
+    const got = new Set(hits);
+    const gaps: WordAt[] = [];
+    for (let k = lo; k <= hi; k++) {
+      const w = got.has(k) ? undefined : this.tracker.printedAt(k);
+      if (w) gaps.push(w);
+    }
+    if (gaps.length) this.ev.onWords(gaps, false);
+  }
+
+  /** A «أعد»: what the stretch wrote is taken back, and its place marked. */
+  private missed() {
+    if (!this.ev.onWords) return;
+    const t = this.tracker;
+    if (this.stretchHits.length && t.ayat === this.hitsOf)
+      this.ev.onWords(this.stretchHits.map((k) => t.printedAt(k)).filter((x): x is WordAt => !!x), true);
+    const at = this.stretchHits.length ? Math.min(...this.stretchHits) : t.at();
+    this.stretchHits = [];
+    this.lastJudged = -1; // he repeats: what he skipped then is not «said»
+    this.ev.onMiss?.(t.printedAt(at) ?? null);
+  }
+
+  private async applyRiwaya(key: string): Promise<MushafData> {
+    const next = await this.deps.switchRiwaya(riwayaOf(key).key);
+    this.deps.mushaf = next;
+    this.locator = null;
+    this.exam = null;
+    this.anchor = null;
+    this.tracker.setRange([]);
+    this.current = null;
+    return next;
+  }
+
+  /** The riwaya badge was tapped: the teacher and the recorded mushaf stop, and nothing he says reaches the teacher
+   *  until he picks one or closes the sheet. */
+  hold(on: boolean) {
+    if (this.holding === on) return;
+    this.holding = on;
+    this.ev.onEvent(on ? 'hold' : 'hold off');
+    if (on) {
+      this.stopMushaf();
+      this.stopPlayback();
+      this.fath.stop();
+      this.muted = true;
+      this.pending = [];
+    }
+    this.lastActiveAt = Date.now();
+  }
+
+  /** He picked a riwaya on the screen: switched as set_riwaya does, and the teacher is told. */
+  async pickRiwaya(key: RiwayaKey) {
+    const at = this.tracker.current();
+    const next = await this.applyRiwaya(key);
+    this.ev.onEvent(`riwaya ${next.key} (badge)`);
+    const where = at ? ` كان يقرأ في سورة ${next.surahs.find((x) => x.no === at.s)?.name_ar ?? at.s}: استدعِ open_mushaf لموضعه إذا قرأ.` : '';
+    const note = `(ملاحظة آلية من التطبيق: اختار القارئ من الشاشة رواية ${riwayaOf(next.key).name}. احكم بها من الآن، ولا تقل شيئاً بسبب هذه الملاحظة.${where})\n${riwayaBrief(riwayaOf(next.key))}`;
+    if (this.ready && !this.closing) this.send({ realtimeInput: { text: note } });
+    else this.noteOnReopen = note;
+  }
+
+  /** He turned the mushaf to a page: he will recite from there. The tracker opens it (the place is not confirmed, so
+   *  it is found anywhere in the next pages) and the teacher gets its text. */
+  openAt(ayahId: number, page: number) {
+    const m = this.deps.mushaf;
+    const at = m.quran.find((x) => x.id === ayahId);
+    if (!at || this.exam || this.mushafAudio) return;
+    const range = rangeFrom(m.quran, at.s, at.a);
+    this.anchor = null;
+    this.tracker.setRange(range, false, m.diffs);
+    this.unplaced = [];
+    this.reciting = true;
+    this.current = { s: at.s, a: at.a };
+    const name = m.surahs.find((x) => x.no === at.s)?.name_ar ?? '';
+    this.ev.onPosition(`سورة ${name} · الصفحة ${page}`);
+    this.ev.onReciting(this.current);
+    this.ev.onEvent(`page ${page} (${at.s}:${at.a})`);
+    const sent = rangeFrom(m.quran, at.s, at.a, 3);
+    this.refUntil = sent.length - 1;
+    const note =
+      `(ملاحظة آلية من التطبيق: فتح القارئ المصحف على الصفحة ${page}، وأولها سورة ${name}، الآية ${at.a}. إن قرأ فمنها أو مما بعدها غالباً، ` +
+      `وانتقاله إليها مقصود. هذا نصّها المرجعي فاحكم به، ولا تقل شيئاً بسبب هذه الملاحظة.)\n` +
+      formatReference(sent, m.surahs, m.diffs, riwayaOf(m.key).short);
+    if (this.ready && !this.closing) this.send({ realtimeInput: { text: note } });
+    else this.noteOnReopen = note;
+  }
+
   private findPlace(chunk: string) {
     const m = this.deps.mushaf;
     this.remember(chunk);
@@ -1011,6 +1338,7 @@ export class RecitationSession {
     this.anchor = null;
     this.tracker.setRange(range, false, m.diffs);
     this.tracker.feed(this.unplaced.slice(found.from).join(' ') + ' ');
+    this.reveal(true);
     this.unplaced = [];
     this.lastRecitedAt = Date.now();
     this.reciting = true;
@@ -1019,6 +1347,7 @@ export class RecitationSession {
     this.ev.onPosition(`سورة ${name} · من الآية ${at.a}`);
     this.ev.onReciting(this.current);
     this.ev.onEvent(`placed ${at.s}:${at.a}`);
+    this.prefetchFath();
     const ref = formatReference(range, m.surahs, m.diffs, riwayaOf(m.key).short);
     this.refUntil = range.length - 1;
     const who = this.praying ? 'المصلي' : 'القارئ';
@@ -1106,22 +1435,27 @@ export class RecitationSession {
             const name = m.surahs.find((x) => x.no === range[0].s)?.name_ar ?? '';
             this.ev.onPosition(`سورة ${name} · من الآية ${range[0].a}`);
             this.ev.onReciting(this.current);
+            this.prefetchFath();
             response = { result: formatReference(range, m.surahs, m.diffs, riwayaOf(m.key).short) };
           } else response = { error: `لا توجد هذه الآية في مصحف ${riwayaOf(m.key).short}` };
         } else if (c.name === 'show_ayah') {
           const s = Number(args.surah) || this.current?.s;
           const a = Number(args.ayah) || this.current?.a;
           const ayah = m.quran.find((x) => x.s === s && x.a === a);
-          if (ayah) {
+          if (ayah && this.ev.onShow) {
+            this.ev.onShow(ayah.id, false);
+            response = { result: 'فُتحت صفحتها وظهرت الكتابة على الشاشة.' };
+          } else if (ayah) {
             const name = m.surahs.find((x) => x.no === ayah.s)?.name_ar ?? '';
             this.ev.onCard({ title: `سورة ${name} · الآية ${ayah.a}`, text: ayah.t });
           }
         } else if (c.name === 'exam_question') {
           const q = await this.deps.nextExamQuestion({ surah: args.surah, juz: args.juz });
           this.ev.onCard({ title: `السؤال ${q.n} · ${q.title}`, text: q.cue });
+          this.ev.onPosition(`الاختبار · السؤال ${q.n}`); // not the place recited before the exam
           this.openExam(q.ayat);
           if (this.exam) this.exam.asked = `السؤال ${q.n}: ${q.question} (على الشاشة: «${q.cue}»)، والجواب المتوقَّع (EXPECTED، لا تكشفه): «${q.expected}»`;
-          response = { number: q.n, question: q.question, cue_shown_on_screen: q.cue, EXPECTED: q.expected };
+          response = { number: q.n, say_exactly: q.question, cue_shown_on_screen: q.cue, EXPECTED: q.expected };
         } else if (c.name === 'tafsir') {
           const key = `${Number(args.surah) || this.current?.s || 1}:${Number(args.ayah) || this.current?.a || 1}`;
           const hafsId = m.toHafs[key];
@@ -1133,17 +1467,9 @@ export class RecitationSession {
           this.ev.onEvent(`library ${args.book} «${args.query}» → ${pages || 'none'}`);
         } else if (c.name === 'set_riwaya' && riwayaOf(args.riwaya).key === m.key) {
           response = { result: `رواية ${riwayaOf(m.key).short} هي المختارة الآن.` };
-        } else if (c.name === 'set_riwaya' && String(args.confirmed) !== 'true') {
-          // a spoken name is easily misheard («قنبل» → «شعبة»): the reciter confirms it first
-          response = { result: `لم تتغيّر الرواية. اسأله أولاً بكلمات قليلة: «أنتقل إلى رواية ${riwayaOf(args.riwaya).short}؟»، فإذا أكّد أو أعاد اسمها فاستدعِ set_riwaya بـ confirmed=true.` };
         } else if (c.name === 'set_riwaya') {
-          const next = await this.deps.switchRiwaya(args.riwaya);
-          this.deps.mushaf = next;
-          this.locator = null;
-          this.exam = null;
-          this.anchor = null;
-          this.tracker.setRange([]);
-          this.current = null;
+          // no confirmation asked (user 2026-11-04): a misheard name is undone with the badge
+          const next = await this.applyRiwaya(args.riwaya);
           response = { result: `صارت الرواية المختارة: ${riwayaOf(next.key).name}. احكم بها من الآن، واستدعِ open_mushaf للموضع.\n${riwayaBrief(riwayaOf(next.key))}` };
         } else if (c.name === 'prayer_mode') {
           this.setPraying(Boolean(args.on));
@@ -1151,14 +1477,16 @@ export class RecitationSession {
           const run = args.last_read === true || String(args.last_read) === 'true' ? this.lastRead : null;
           // from_words: found by the client (audio.ts)
           const r = run
-            ? await recitationSpan(m, { reciter: args.reciter, surah: run.s, from_ayah: run.from, to_ayah: run.to }, run.s)
-            : await recitationSpan(m, args, this.current?.s, `${this.standing} ${this.you || this.lastAsked}`);
+            ? await recitationSpan(m, { reciter: args.reciter || this.prefReciter || undefined, surah: run.s, from_ayah: run.from, to_ayah: run.to }, run.s)
+            : await recitationSpan(m, { ...args, reciter: args.reciter || this.prefReciter || undefined }, this.current?.s, `${this.standing} ${this.you || this.lastAsked}`);
           if ('error' in r) response = { error: r.error };
           else {
-            this.playMushaf(r.span.url, r.span.start, r.span.end, r.label, !holdsStopWord(r.ayat));
+            this.playMushaf(r.span.url, r.span.start, r.span.end, r.label, !holdsStopWord(r.ayat), r.ayat, r.span.reciter);
             const missing = r.span.missing ? `ليس في التطبيق تسجيل لـ«${args.reciter}» برواية ${riwayaOf(m.key).short}، فأخبره بذلك. ` : '';
             response = { result: `${missing}${r.note}يُتلى الآن بصوت ${r.span.reciter} برواية ${riwayaOf(m.key).short}. اسكت حتى ينتهي.` };
           }
+        } else if (c.name === 'set_option') {
+          response = this.setOption(String(args.name), String(args.value ?? ''), args.save === true || String(args.save) === 'true');
         } else if (c.name === 'past_sessions') {
           response = { result: this.deps.pastSessions() || 'لا توجد جلسات سابقة على هذا الجهاز.' };
         }
@@ -1178,6 +1506,7 @@ export class RecitationSession {
       return;
     }
     this.send({ toolResponse: { functionResponses: responses } });
+    this.toolAt = Date.now();
     this.toolPending = false;
     if (this.praying) {
       // in salat the teacher does not answer a lookup: give the turn back now, or the recitation is held
@@ -1193,13 +1522,54 @@ export class RecitationSession {
     }, this.toolWaitMs);
   }
 
+  // ── settings (set_option) ──────────────────────────────────────────────
+  /** A setting changed by voice: applied here, and handed to the app (the screen, and storage when saved). */
+  private setOption(name: string, value: string, save: boolean): Record<string, unknown> {
+    const m = this.deps.mushaf;
+    const names: OptionName[] = ['reciter', 'text', 'voice', 'ayat_per_play'];
+    if (!names.includes(name as OptionName)) return { error: `لا إعداد بهذا الاسم. الإعدادات: ${names.join('، ')}` };
+    const n = name as OptionName;
+    let set = value.trim();
+    if (n === 'reciter') {
+      const r = reciterOf(m.key, set);
+      if (!r) return { error: `لا تسجيل لهذا الاسم برواية ${riwayaOf(m.key).short}. المصاحف المسجّلة: ${recitersText(m.key)}` };
+      set = r.name;
+    } else if (n === 'text') {
+      set = /hid|اخف|إخف|خف/.test(set) ? 'hidden' : /show|اظه|إظه|ظه/.test(set) ? 'shown' : '';
+      if (!set) return { error: 'القيمة: hidden أو shown' };
+      save = false; // this session only (user 2026-11-06)
+    } else if (n === 'voice') {
+      set = /low|منخفض|خافت|اخفض/.test(set) ? 'low' : /loud|high|مرتفع|عال|ارفع/.test(set) ? 'loud' : /normal|عادي|وسط/.test(set) ? 'normal' : '';
+      if (!set) return { error: 'القيمة: low أو normal أو loud' };
+    } else {
+      const k = Number(set.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))));
+      if (!(k >= 1 && k <= 10)) return { error: 'عدد من 1 إلى 10' };
+      set = String(k);
+    }
+    this.applyOption(n, set);
+    try {
+      this.deps.setOption?.(n, set, save);
+    } catch (e) {
+      return { error: String(e) };
+    }
+    this.ev.onEvent(`option ${n}=${set}${save ? ' (saved)' : ''}`);
+    const said = n === 'reciter' ? `القارئ الافتراضي الآن: ${set}` : n === 'text' ? (set === 'hidden' ? 'أُخفيت الكتابة' : 'أُظهرت الكتابة') : n === 'voice' ? `مستوى الصوت: ${set === 'low' ? 'منخفض' : set === 'loud' ? 'مرتفع' : 'عادي'}` : `في كل تشغيل ${set} آيات: مرّر to_ayah = from_ayah + ${Number(set) - 1} في كل play_recitation ما لم يذكر نهاية أخرى`;
+    return { result: `${said}${save ? '، محفوظ للجلسات القادمة' : n === 'text' ? ' (لهذه الجلسة)' : '، لهذه الجلسة'}.` };
+  }
+
+  private applyOption(n: OptionName, v: string) {
+    if (n === 'reciter') this.prefReciter = v;
+    else if (n === 'voice') this.voiceScale = VOICE_SCALE[v] ?? 1;
+    else if (n === 'ayat_per_play') this.standing = `في كل مرة ${v} آيات`;
+  }
+
   // ── playback ───────────────────────────────────────────────────────────
   /** Called once per voiced turn, before its first chunk plays. Short remarks are played softer. */
   private startTurnAudio(firstWords: string) {
     const ctx = this.outCtx;
     if (!ctx) return;
     this.turnGain = ctx.createGain();
-    this.turnGain.gain.value = firstWords.split(/\s+/).length <= 2 && firstWords.length <= 14 ? SOFT_GAIN : VOICE_GAIN;
+    this.turnGain.gain.value = (firstWords.split(/\s+/).length <= 2 && firstWords.length <= 14 ? SOFT_GAIN : VOICE_GAIN) * this.voiceScale;
     this.turnGain.connect(ctx.destination);
   }
 
@@ -1207,7 +1577,7 @@ export class RecitationSession {
   private stopListener: StopListener | null = null;
 
   /** The recorded mushaf, through the same output as the teacher's voice (so one volume controls both). */
-  private playMushaf(url: string, start: number, end: number, label: string, listen: boolean) {
+  private playMushaf(url: string, start: number, end: number, label: string, listen: boolean, ayat: Ayah[] = [], reciter = '') {
     this.stopMushaf();
     const ctx = this.outCtx;
     if (!ctx) return;
@@ -1225,6 +1595,38 @@ export class RecitationSession {
     el.addEventListener('ended', done);
     el.addEventListener('error', done);
     el.play().catch(done);
+    if (ayat[0] && this.ev.onShow) {
+      this.ev.onShow(ayat[0].id, true);
+      this.followRecording(el, ayat, reciter);
+    }
+  }
+
+  /** The word the recording is at, from its word timings (al-Kouchi), while it plays. */
+  private async followRecording(el: HTMLAudioElement, ayat: Ayah[], reciter: string) {
+    const key = this.deps.mushaf.key;
+    const r = RECITERS[key].find((x) => x.name === reciter);
+    const list: AyahWords[] | null = r ? await surahWords(key, r, ayat[0].s) : null;
+    if (!list) return;
+    const ids = new Map(this.deps.mushaf.quran.filter((x) => x.s === ayat[0].s).map((x) => [x.a, x.id]));
+    let last = '';
+    const tick = () => {
+      if (this.mushafAudio !== el) return this.ev.onPlayWord?.(null);
+      const t = el.currentTime * 1000;
+      const x = list.find((y) => y.w[0] != null && y.w[0]! <= t && t < y.e);
+      let k = -1;
+      if (x) x.w.forEach((w, i) => w != null && w <= t && (k = i));
+      const id = x && ids.get(x.a);
+      const key = id && k >= 0 ? `${id}:${k}` : '';
+      if (key !== last) {
+        last = key;
+        if (id && k >= 0) {
+          this.ev.onPlayWord?.({ id, k });
+          this.ev.onPlace?.({ id, k });
+        }
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   }
 
   private stoppedByWord() {
@@ -1246,7 +1648,7 @@ export class RecitationSession {
 
   private play(b64: string) {
     const ctx = this.outCtx;
-    if (!ctx || this.mushafAudio) return; // the teacher keeps quiet while the mushaf plays
+    if (!ctx || this.mushafAudio || this.holding || this.wordPlayed) return; // the teacher keeps quiet while the mushaf plays, or the riwaya sheet is open; the recorded word replaces its voice
     const bin = atob(b64);
     const n = bin.length >> 1;
     const buf = ctx.createBuffer(1, n, 24000);

@@ -25,3 +25,27 @@ bucket_name = "almusammi-audio"
 [vars]
 LIVE_MODEL = "gemini-3.8-live"
 LIBRARY_ORIGIN = "https://hifz.benjelloun.dev"
+
+# The mushaf mode's first host: it now only sends to https://musammi.benjelloun.dev/mushaf (worker/index.ts), so it
+# needs no secrets. Deploy: npx wrangler deploy --env mushaf
+[env.mushaf]
+name = "tarteel-warsh"
+routes = [{ pattern = "tarteel-warsh.benjelloun.dev", custom_domain = true }]
+
+# every request to the Worker first, so pages redirect too instead of being served from the assets
+[env.mushaf.assets]
+directory = "client/dist"
+binding = "ASSETS"
+run_worker_first = true
+
+[[env.mushaf.kv_namespaces]]
+binding = "SESSIONS"
+id = "d04e77249cf047d0a24fdff0a451b0f4"
+
+[[env.mushaf.r2_buckets]]
+binding = "AUDIO"
+bucket_name = "almusammi-audio"
+
+[env.mushaf.vars]
+LIVE_MODEL = "gemini-3.8-live"
+LIBRARY_ORIGIN = "https://hifz.benjelloun.dev"

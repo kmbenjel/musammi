@@ -23,6 +23,7 @@ export interface TestQuestion {
   pageNo: number;
   juzNo: number;
   cueText: string; // Shown on screen in Warsh font (first 3-5 words)
+  ask: string; // What the teacher says, word for word: no ayah words beyond the cue, never the answer
   expectedText: string; // The full expected answer for the model to judge
   expectedAyatList: CompactAyah[];
   userScoreStatus?: 'first_time' | 'after_aid' | 'after_fath' | 'failed';
@@ -130,6 +131,7 @@ export async function generateTestExam(options: {
             pageNo: targetAyah.p,
             juzNo: targetAyah.j,
             cueText: cue,
+            ask: `أكمل من قوله تعالى: «${cue}»`,
             expectedText: expected,
             expectedAyatList: nextAyat,
           };
@@ -150,6 +152,7 @@ export async function generateTestExam(options: {
               pageNo: targetAyah.p,
               juzNo: targetAyah.j,
               cueText: cue,
+              ask: `اقرأ الآية التي قبل قوله تعالى: «${getCue(targetAyah.t, 5)}»`,
               expectedText: prevAyah.t,
               expectedAyatList: [prevAyah],
             };
@@ -174,6 +177,7 @@ export async function generateTestExam(options: {
             pageNo: juzFirstAyah.p,
             juzNo: juzFirstAyah.j,
             cueText: `افتتاح الجزء ${juzFirstAyah.j} (سورة ${sMeta?.name_ar})`,
+            ask: `اقرأ أول الجزء ${juzFirstAyah.j}، وهو في سورة ${sMeta?.name_ar}`, // no cue words: the model made some up (Qasas 28:14 for juz 25)
             expectedText: nextAyat.map((a) => a.t).join(' '),
             expectedAyatList: nextAyat,
           };
@@ -193,6 +197,7 @@ export async function generateTestExam(options: {
             pageNo: occ.page,
             juzNo: occ.juz,
             cueText: `«${mGroup.cue}» في سورة ${sMeta?.name_ar}`,
+            ask: `أكمل «${mGroup.cue}» كما هي في سورة ${sMeta?.name_ar}`,
             expectedText: occ.full_text,
             expectedAyatList: [
               {
@@ -221,6 +226,7 @@ export async function generateTestExam(options: {
           pageNo: targetAyah.p,
           juzNo: targetAyah.j,
           cueText: targetAyah.t,
+          ask: 'في أي سورة الآية التي على الشاشة؟',
           expectedText: `سورة ${surahName}`,
           expectedAyatList: [targetAyah],
         };

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@500;600&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="base.css">
+<style>
+  /* Chrome for Android in Arabic: the toolbar is mirrored, so ⋮ sits at the far left. */
+  .status { position: absolute; inset: 0 0 auto; height: 26px; background: #1b1c1f; }
+  .bar { position: absolute; top: 26px; inset-inline: 0; height: 56px; background: #1b1c1f; border-bottom: 1px solid #2c2d31; }
+  .bar .home { position: absolute; right: 12px; top: 16px; }
+  .bar .url {
+    position: absolute; right: 46px; left: 74px; top: 10px; height: 36px; border-radius: 18px; background: #2c2d31;
+    display: flex; align-items: center; gap: 6px; padding-inline: 10px; direction: ltr;
+    font: 500 13px/1 'Tajawal', sans-serif; color: #d6d7db; white-space: nowrap; overflow: hidden;
+  }
+  .bar .tabs {
+    position: absolute; left: 42px; top: 17px; width: 22px; height: 22px; border: 2px solid #d6d7db; border-radius: 5px;
+    display: grid; place-items: center; font: 700 12px/1 'Tajawal', sans-serif; color: #d6d7db;
+  }
+  .bar .more { position: absolute; left: 10px; top: 14px; }
+  .menu {
+    position: absolute; top: 32px; left: 6px; width: 222px; background: #2b2c30; border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .6); padding-bottom: 6px;
+  }
+  .menu .icons { display: flex; justify-content: space-around; padding: 13px 6px 11px; border-bottom: 1px solid #3a3b40; }
+  .menu .item { height: 43px; display: flex; align-items: center; gap: 14px; padding-inline: 16px; font: 500 17px/1 'Tajawal', sans-serif; color: #e6e7ea; }
+  .menu .item svg { flex: none; }
+</style>
+</head>
+<body>
+<h1>أندرويد <span class="dot"></span> <span class="sub">Chrome</span></h1>
+<div class="panels">
+
+  <div class="col">
+    <div class="phone top">
+      <div class="app">
+        <span class="brand" style="top:104px">المُسَمِّع</span>
+        <span class="pill" style="top:104px">● ورش</span>
+        <span class="orb" style="top:186px"></span>
+        <span class="hint" style="top:378px">اضغط وتكلّم</span>
+      </div>
+      <div class="status"></div>
+      <div class="bar">
+        <svg class="home" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d6d7db" stroke-width="2"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg>
+        <div class="url">
+          <svg width="12" height="14" viewBox="0 0 12 14" fill="#d6d7db"><rect x="1" y="6" width="10" height="8" rx="1.5"/><path d="M3 6V4a3 3 0 0 1 6 0v2" fill="none" stroke="#d6d7db" stroke-width="1.6"/></svg>
+          musammi.benjelloun.dev
+        </div>
+        <div class="tabs">1</div>
+        <svg class="more" width="24" height="28" viewBox="0 0 24 28" fill="#d6d7db"><circle cx="12" cy="6" r="2.6"/><circle cx="12" cy="14" r="2.6"/><circle cx="12" cy="22" r="2.6"/></svg>
+      </div>
+      <div class="ring" style="left:3px; top:32px; width:38px; height:44px"><span class="badge" style="left:20px">1</span></div>
+    </div>
+    <p class="cap">زر القائمة <bdi>⋮</bdi></p>
+  </div>
+
+  <div class="col">
+    <div class="phone top">
+      <div class="app">
+        <span class="brand" style="top:104px">المُسَمِّع</span>
+        <span class="pill" style="top:104px">● ورش</span>
+        <span class="orb" style="top:186px"></span>
+        <span class="hint" style="top:378px">اضغط وتكلّم</span>
+      </div>
+      <div class="status"></div>
+      <div class="bar"></div>
+      <div class="dim"></div>
+      <div class="menu">
+        <div class="icons">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d6d7db" stroke-width="2"><path d="M14 5l-7 7 7 7M7 12h13"/></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d6d7db" stroke-width="2"><path d="M12 3l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d6d7db" stroke-width="2"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d6d7db" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d6d7db" stroke-width="2"><path d="M19 12a7 7 0 1 1-2-5M19 4v4h-4"/></svg>
+        </div>
+        <div class="item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d6d7db" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>علامة تبويب جديدة</div>
+        <div class="item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d6d7db" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>السجلّ</div>
+        <div class="item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d6d7db" stroke-width="2"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>التنزيلات</div>
+        <div class="item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d6d7db" stroke-width="2"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="5" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.6M8.2 13.2l7.6 4.6"/></svg>مشاركة…</div>
+        <div class="item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d6d7db" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3"/></svg>تثبيت التطبيق</div>
+        <div class="item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d6d7db" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>الإعدادات</div>
+      </div>
+      <div class="ring" style="left:3px; top:248px; width:228px; height:47px"><span class="badge" style="right:-14px">2</span></div>
+    </div>
+    <p class="cap">«تثبيت التطبيق»</p>
+    <p class="small">أو «إضافة إلى الشاشة الرئيسية»</p>
+  </div>
+
+</div>
+</body>
+</html>

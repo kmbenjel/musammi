@@ -12,7 +12,8 @@ export interface Reciter {
   name: string;
   folder: string;
   read?: number; // mp3quran timing id; none: whole surahs only
-  words?: string; // word timings: client/public/riwayat/<riwaya>/words/<words>/NNN.json (scripts/build_word_timings.py)
+  words?: string; // word timings: client/public/riwayat/<riwaya>/words/<words>/NNN.json (scripts/build_word_timings.py; a surah
+  // without a file plays from the ayah start). Every reciter with timings is being aligned on crop-vm (2026-11-06).
 }
 
 // Murattal only (no mujawwad). The first is the default: the shortest recording among the best-known reciters
@@ -20,20 +21,20 @@ export interface Reciter {
 export const RECITERS: Record<RiwayaKey, Reciter[]> = {
   warsh: [
     { name: 'العيون الكوشي', folder: CDN + 'laayoun-kouchi/r1/', read: 16, words: 'laayoun-kouchi' },
-    { name: 'محمود خليل الحصري', folder: CDN + 'mahmoud-husary/r3/', read: 120 },
+    { name: 'محمود خليل الحصري', folder: CDN + 'mahmoud-husary/r3/', read: 120, words: 'mahmoud-husary' },
     { name: 'عبد الباسط عبد الصمد', folder: CDN + 'abdulbasit-abdulsamad/r2/' },
-    { name: 'عمر القزابري', folder: CDN + 'omar-kazabri/r1/', read: 80 }, // user, 2026-10-29
-    { name: 'ياسين الجزائري', folder: CDN + 'yassen-jazairi/r1/', read: 14 },
+    { name: 'عمر القزابري', folder: CDN + 'omar-kazabri/r1/', read: 80, words: 'omar-kazabri' }, // user, 2026-10-29
+    { name: 'ياسين الجزائري', folder: CDN + 'yassen-jazairi/r1/', read: 14, words: 'yassen-jazairi' },
   ],
-  qaloon: [{ name: 'علي الحذيفي', folder: CDN + 'ali-hudhaifi/r2/', read: 75 }],
+  qaloon: [{ name: 'علي الحذيفي', folder: CDN + 'ali-hudhaifi/r2/', read: 75, words: 'ali-hudhaifi' }],
   hafs: [
-    { name: 'سعود الشريم', folder: CDN + 'saud-shuraim/r1/', read: 31 },
-    { name: 'محمد صديق المنشاوي', folder: CDN + 'muhammad-minshawi/r1/', read: 112 },
+    { name: 'سعود الشريم', folder: CDN + 'saud-shuraim/r1/', read: 31, words: 'saud-shuraim' },
+    { name: 'محمد صديق المنشاوي', folder: CDN + 'muhammad-minshawi/r1/', read: 112, words: 'muhammad-minshawi' },
   ],
-  shouba: [{ name: 'علي الحذيفي', folder: CDN + 'ali-hudhaifi/r3/', read: 305 }],
-  doori: [{ name: 'محمود خليل الحصري', folder: CDN + 'mahmoud-husary/r4/', read: 269 }],
-  soosi: [{ name: 'عبد الرشيد صوفي', folder: CDN + 'abdulrasheed-sufi/r2/', read: 65 }],
-  bazzi: [{ name: 'عكاشة كميني', folder: CDN + 'okasha-kameny/r2/', read: 296 }],
+  shouba: [{ name: 'علي الحذيفي', folder: CDN + 'ali-hudhaifi/r3/', read: 305, words: 'ali-hudhaifi' }],
+  doori: [{ name: 'محمود خليل الحصري', folder: CDN + 'mahmoud-husary/r4/', read: 269, words: 'mahmoud-husary' }],
+  soosi: [{ name: 'عبد الرشيد صوفي', folder: CDN + 'abdulrasheed-sufi/r2/', read: 65, words: 'abdulrasheed-sufi' }],
+  bazzi: [{ name: 'عكاشة كميني', folder: CDN + 'okasha-kameny/r2/', read: 296, words: 'okasha-kameny' }],
   qumbul: [{ name: 'أحمد ديبان', folder: CDN + 'ahmad-deeban/r3/' }],
 };
 
@@ -205,11 +206,11 @@ export interface RecitationArgs {
   reciter?: string;
 }
 
-/** Did he name an end? If not, one ayah is played, whatever range the model chose (the mic is shut while it plays). A surah or a portion of it, «إلى آخر…», «إلى قوله…», or a number of ayat. The range the model
+/** Did he name an end? If not, one ayah is played, whatever range the model chose (the mic is shut while it plays). A surah or a portion of it, «إلى آخر…», «إلى قوله…», «إلى الثالثة», or a number of ayat («ثلاثة آيات», «الآيات الثلاث»; 2026-11-03 16:04 played one). The range the model
  *  fills in by itself otherwise runs to the surah's end (2026-10-30: «شغل الآية التي وقفت عندها» → 23:72–119). */
 export function namesAnEnd(said: string): boolean {
   return /[\d\u0660-\u0669]/.test(said)
-    || /سوره|كامل|حزب|جزء|ثمن|ربع|صفحه|(الي|حتي) (اخر|نهايه|الايه|ايه|قوله|اثن|ثلاث|اربع|خمس|ست|سبع|ثمان|تسع|عشر|مئه|مائه)|ايتين|(ثلاث|اربع|خمس|ست|سبع|ثمان|ثماني|تسع|عشر|عشرين|ثلاثين) (ايات|ايه)/.test(normalizeArabic(said));
+    || /سوره|كامل|حزب|جزء|ثمن|ربع|صفحه|(الي|حتي) (ال)?(اخر|نهايه|الايه|ايه|قوله|اثن|ثاني|ثلاث|ثالث|اربع|رابع|خمس|ست|سادس|سبع|سابع|ثمان|تسع|تاسع|عشر|عاشر|مئه|مائه)|ايتين|(ثلاث|اربع|خمس|ست|سبع|ثمان|ثماني|تسع|عشر|عشرين|ثلاثين)ه? (ايات|ايه)|ايات (ال)?(ثلاث|اربع|خمس|ست|سبع|ثمان|تسع|عشر)/.test(normalizeArabic(said));
 }
 
 const LETTERS = /[ء-يٱ-ۓ]/;
@@ -229,6 +230,9 @@ export async function recitationSpan(
   const nameOf = (s: number) => m.surahs.find((x) => x.no === s)?.name_ar ?? String(s);
   let s = Number(args.surah) || surahNow || 1;
   const knownSurah = !!(Number(args.surah) || surahNow);
+  // «شغل هذه الآية» after talking of النور 56, nothing recited yet: surah 1 played (2026-11-03 07:37)
+  if (!knownSurah && !String(args.from_words ?? '').trim())
+    return { error: 'لم تُمرَّر السورة ولا يُعرف موضعه. استدعِ play_recitation ثانية بـ surah و from_ayah مما ذُكر في الكلام، أو اسأله أي سورة.' };
   const fromAyah = Number(args.from_ayah) || 0;
   const toAyah = Number(args.to_ayah) || 0;
   let shortened = 0;

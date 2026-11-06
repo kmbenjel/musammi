@@ -290,12 +290,13 @@ button {
   overflow-wrap: anywhere;
 }
 
-/* what I say, in the riwaya's mushaf font (already loaded for the ayah card; no extra cost) */
+/* what I say, in the riwaya's mushaf font (already loaded for the ayah card; no extra cost); --text-scale: the
+   size buttons under the orb */
 .line.you {
   color: var(--parchment-dim);
   font-family: var(--quran);
-  font-size: 1.5rem;
-  line-height: 1.95;
+  font-size: calc(1.6rem * var(--text-scale, 1));
+  line-height: 2.05;
 }
 
 /* the words still coming, and a stretch read right, in the mushaf's own words */
@@ -318,11 +319,26 @@ button {
 /* the teacher's words: in ink, set off by a short rule at the line start */
 .line.teacher {
   color: var(--ink);
-  font-size: 1.4rem;
+  font-size: calc(1.3rem * var(--text-scale, 1));
   font-weight: 700;
   line-height: 1.75;
   padding-inline-start: 14px;
   border-inline-start: 2px solid var(--ink-glow);
+}
+
+/* the correction word alone («أعد», «سبحان الله»): a small mark between the verses, not a line of its own */
+.line.teacher.redo {
+  align-self: flex-start;
+  font-size: calc(1rem * var(--text-scale, 1));
+  line-height: 1.4;
+  padding: 3px 12px;
+  border: 1px solid var(--ink-glow);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+}
+
+.hidden-note {
+  margin-top: 24px;
 }
 
 @keyframes blink {
@@ -386,7 +402,22 @@ button {
 .bottom {
   display: flex;
   justify-content: center;
+  align-items: center;
+  gap: 8px;
   padding-top: 8px;
+}
+
+.small {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--parchment-dim);
+  font-size: 0.95rem;
+}
+.small:disabled {
+  opacity: 0.35;
 }
 
 .end {

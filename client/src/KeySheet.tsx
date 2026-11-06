@@ -11,8 +11,13 @@ export const KeySheet: React.FC<{ current: string | null; onSave: (key: string |
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    const key = draft.replace(/\s+/g, '').replace(/^["'«]+|["'»]+$/g, '');
-    if (!key || busy) return;
+    // a key is plain ASCII; a paste can bring invisible marks (U+200F, U+202A...), which fetch refuses in a header
+    const key = draft.replace(/[^\x21-\x7e]/g, '').replace(/^["']+|["']+$/g, '');
+    if (busy) return;
+    if (!key) {
+      setError('هذا ليس مفتاحاً. المفتاح حروف لاتينية وأرقام، انسخه من Google AI Studio.');
+      return;
+    }
     setBusy(true);
     setError('');
     const refused = await checkGeminiKey(key);

@@ -165,7 +165,7 @@ export function readRunAfter(run: ReadRun | null, s: number, from: number, to: n
 /** Follows the reciter through the reference range using the live input transcription. */
 export class PositionTracker {
   // idx → index in ayat; t: the word as printed; h: the word as Hafs reads it, where this riwaya differs (farsh)
-  private words: { w: string; idx: number; t?: string; h?: string }[] = [];
+  private words: { w: string; idx: number; t?: string; h?: string; pk: number }[] = [];
   private ptr = 0;
   private pending = '';
   ayat: Ayah[] = [];
@@ -182,6 +182,9 @@ export class PositionTracker {
   seen = 0; // words heard, and those that matched the text (nearly) exactly
   exact = 0;
   jumps = 0; // moves forward past text: words left out, or a move to another place
+  /** Every word matched, in order (index into the range's words; setRange starts it again): the words the mushaf mode
+   *  writes on a hidden page. */
+  hits: number[] = [];
 
   /**
    * A whole stretch (the transcript arrives per stretch): where in the range does it fit best? If clearly
@@ -192,23 +195,24 @@ export class PositionTracker {
     // start: the first word that fits (the search from k looks up to 6 words ahead for it)
     const fits = (k: number) => {
       let hit = 0, j = k, start = k;
+      const at: number[] = [];
       for (const w of ws) {
         for (let t = j; t < Math.min(j + (hit ? 3 : 6), this.words.length); t++) {
-          if (simWord(w, this.words[t]) >= 0.8) { if (!hit) start = t; hit++; j = t + 1; break; }
+          if (simWord(w, this.words[t]) >= 0.8) { if (!hit) start = t; hit++; j = t + 1; at.push(t); break; }
         }
       }
-      return { hit, start, end: j };
+      return { hit, start, end: j, at };
     };
     const here = fits(Math.max(0, this.ptr - 3));
     if (here.hit >= ws.length * 0.5) return; // continues where it was
     const enough = (f: { hit: number; start: number }) => f.start >= 0 && f.hit >= Math.max(4, ws.length * 0.7);
-    const none = { hit: 0, start: -1, end: 0 };
+    const none = { hit: 0, start: -1, end: 0, at: [] as number[] };
     if (this.matched < 6) {
       // The starting place is not confirmed yet (a range opened at the surah's start, or a quick restart where the
       // last session stopped, while he reads elsewhere in it): go where the stretch clearly fits, ahead or behind,
       // unless it fits as well somewhere else (a refrain). Not a skip: he had not started here.
       let best = none;
-      const all: { hit: number; start: number; end: number }[] = [];
+      const all: { hit: number; start: number; end: number; at: number[] }[] = [];
       for (let k = 0; k < this.words.length; k++) {
         const f = fits(k);
         all.push(f);
@@ -217,10 +221,13 @@ export class PositionTracker {
       if (!enough(best) || all.some((f) => f.hit >= best.hit && Math.abs(f.start - best.start) > 8)) return;
       this.ptr = this.reached = best.end;
       this.matched += best.hit;
+      this.hits.push(...best.at);
       return;
     }
     let best = none;
-    for (let k = this.ptr + 8; k < this.words.length; k++) {
+    // from where `here` stopped looking (a start up to ptr+2), nearest first: a phrase found again further on loses
+    // to the same phrase just after a few words the transcript dropped (from ptr+8, 24:49 won over 24:46, 2026-11-02)
+    for (let k = this.ptr + 3; k < this.words.length; k++) {
       const f = fits(k);
       if (f.hit > best.hit) best = f;
     }
@@ -239,6 +246,7 @@ export class PositionTracker {
       if (enough(back) && back.hit >= best.hit) {
         this.ptr = this.reached = back.end; // what he read in the similar ayah was never reached
         this.slipFrom = -1;
+        this.hits.push(...back.at);
         return;
       }
     }
@@ -246,13 +254,14 @@ export class PositionTracker {
       // Further back (a deliberate return, or a repetition that starts more than feed's 8 words behind): follow
       // only a place the words cannot also be read at elsewhere (a refrain, a repeated phrase), here and ahead
       // included: a noisy stretch at his place may read better at the same phrase behind.
-      const behind: { hit: number; start: number; end: number }[] = [];
+      const behind: { hit: number; start: number; end: number; at: number[] }[] = [];
       for (let k = this.ptr - 9; k >= 0; k--) behind.push(fits(k)); // nearest first
       const back = behind.reduce((b, f) => (f.hit > b.hit ? f : b), none);
       if (!enough(back) || back.hit <= best.hit) return;
       if (behind.some((f) => f.hit >= back.hit && Math.abs(f.start - back.start) > 8)) return;
       for (let k = Math.max(0, this.ptr - 8); k < this.ptr + 8 && k < this.words.length; k++) if (fits(k).hit >= back.hit) return;
       this.ptr = back.end;
+      this.hits.push(...back.at);
       return;
     }
     const from = this.ayat[this.words[Math.max(0, Math.min(this.ptr, this.words.length) - 1)].idx]; // last ayah reached
@@ -262,8 +271,13 @@ export class PositionTracker {
       // mutashabihat, say), not a slip into a similar ayah halfway through
       const finished = this.ptr >= this.words.length || this.words[this.ptr].idx !== this.words[this.ptr - 1]?.idx;
       const fresh = best.start === 0 || this.words[best.start - 1].idx !== this.words[best.start].idx;
-      this.skipped = { from, to, moved: finished && fresh };
-      if (finished && fresh) this.slipFrom = -1;
+      // ...except one ayah left out in the same surah: reciting on, he dropped it («لا، أنا قفزت الآية», recording
+      // 10-26 00:12). A short one stays a move: the transcript can lose 2-4 words whole.
+      const left = to.id - from.id === 2 && to.s === from.s ? this.ayat.find((x) => x.id === from.id + 1) : undefined;
+      const dropped = !!left && normalizeTranscript(left.c || left.t).split(' ').filter(Boolean).length >= 5;
+      const moved = finished && fresh && !dropped;
+      this.skipped = { from, to, moved };
+      if (moved) this.slipFrom = -1;
       else {
         if (this.slipFrom < 0) this.slipFrom = this.ptr; // slipping again: the right place is still the first one
         this.slipTo = this.words[best.start].idx;
@@ -271,6 +285,7 @@ export class PositionTracker {
     }
     // in the same ayah or the next, words the transcript dropped (or a short skip feed's window cannot reach): follow
     this.ptr = best.end;
+    this.hits.push(...best.at);
   }
 
   setRange(ayat: Ayah[], keepPosition = false, diffs: HafsDiffs = {}) {
@@ -287,7 +302,11 @@ export class PositionTracker {
         const k = ws.findIndex((w, i) => w === nr && !hafs.has(i));
         if (k >= 0) hafs.set(k, nh);
       }
-      ws.forEach((w, k) => this.words.push({ w, idx, t: printed.length === ws.length ? printed[k] : undefined, h: hafs.get(k) }));
+      // pk: the printed word it is in (a printed word can normalize to two words, or to none)
+      const pk: number[] = [];
+      printed.forEach((t, i) => normalizeTranscript(t).split(' ').filter(Boolean).forEach(() => pk.push(i)));
+      const at = (k: number) => (pk.length === ws.length ? pk[k] : Math.min(printed.length - 1, Math.floor((k * printed.length) / ws.length)));
+      ws.forEach((w, k) => this.words.push({ w, idx, t: printed.length === ws.length ? printed[k] : undefined, h: hafs.get(k), pk: at(k) }));
     });
     this.ptr = 0;
     if (curId !== undefined) {
@@ -296,6 +315,7 @@ export class PositionTracker {
     }
     this.pending = '';
     this.matched = 0;
+    this.hits = [];
     this.reached = this.ptr;
     this.slipFrom = -1;
     this.onTrack = true;
@@ -359,6 +379,7 @@ export class PositionTracker {
         // exact only in this riwaya's own form: a Hafs form reaches the word but may be a real slip
         if (sim(w, this.words[best].w.replace(/ءا/g, 'ا')) - Math.abs(best - this.ptr) * 0.004 >= 0.88) this.exact++; // «ءامنوا» is transcribed «امنوا»
         if (best >= this.ptr && best <= this.ptr + 2) inOrder++;
+        this.hits.push(best);
         if (best > this.ptr) this.jumps++;
         this.ptr = best + 1;
         this.matched++;
@@ -432,6 +453,21 @@ export class PositionTracker {
     return out.join(' ');
   }
 
+  /** Where a fath starts and how many printed words it covers (the words of nextPhrase): the recorded fath (fath.ts)
+   *  plays exactly those words of the reciter's recording. */
+  fathPlace(max = 6): { ayah: Ayah; word: number; count: number } | undefined {
+    const k0 = this.fathAt();
+    const w0 = this.words[k0];
+    if (!w0) return undefined;
+    let count = 1;
+    for (let k = k0, n = 0; k < this.words.length && n < max; k++, n++) {
+      const { t, idx, pk } = this.words[k];
+      count = pk - w0.pk + 1;
+      if (/[\u06D6-\u06DB]/.test(t ?? '') || this.words[k + 1]?.idx !== idx) break;
+    }
+    return { ayah: this.ayat[w0.idx], word: w0.pk, count };
+  }
+
   /** The mushaf's own words from index `from` to `to` (exclusive), as printed in this riwaya, with the number after
    *  each ayah that ends inside: what a stretch read right is shown as. */
   printed(from: number, to: number): string {
@@ -442,6 +478,17 @@ export class PositionTracker {
       if (this.words[k + 1]?.idx !== idx) out.push(this.ayat[idx].a.toLocaleString('ar-EG'));
     }
     return out.join(' ');
+  }
+
+  /** A word the transcript cannot be matched on (one letter: «صٓ», «قٓ», «نٓ», which feed skips). */
+  tooShort(k: number): boolean {
+    return (this.words[k]?.w.length ?? 2) < 2;
+  }
+
+  /** Word index k as the mushaf prints it: the ayah's id and its printed word (0-based). */
+  printedAt(k: number): { id: number; k: number } | undefined {
+    const w = this.words[k];
+    return w && { id: this.ayat[w.idx].id, k: w.pk };
   }
 
   /** The ayah of the word at index k. */
