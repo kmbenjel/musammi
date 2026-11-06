@@ -1,0 +1,21 @@
+// GitHub Codespaces / VS Code dev container: a light box for the app, the tests and the aligner.
+// A personal account gets 2- or 4-core machines only (120 free core-hours a month): good for replays, pulls and
+// development, not for aligning a reciter (~11 h on 4 cores against ~85 min on a 32-vCPU VM).
+// Secrets: add GEMINI_API_KEY and ACCESS_KEY as Codespaces secrets for this repository; setup.sh writes them to .env.
+{
+  "name": "musammi",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "24" },
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.12" }
+  },
+  "hostRequirements": { "cpus": 4, "memory": "16gb", "storage": "32gb" },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "forwardPorts": [5173, 8787],
+  "portsAttributes": { "5173": { "label": "vite" }, "8787": { "label": "wrangler dev" } },
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "ms-python.python", "anthropic.claude-code"]
+    }
+  }
+}
