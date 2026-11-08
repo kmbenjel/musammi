@@ -172,6 +172,10 @@ fails += +!run('start: a refrain does not place him', 22, 1, [h(3).slice(0, 8)],
   // 25:59 on 2026-11-08 00:34: «في ستة أيام» written «في 7 أيام», two false «أعد»
   pause('«7 أيام» for «ستة أيام» (25:59, 11-08)', 25, 59, ['الذي خلق السماوات والارض'], 'وما بينهما في 7 أيام ثم', true);
   pause('a figure where the mushaf has no number word', 2, 281, [w.slice(0, 10).join(' ')], [...w.slice(10, 13), '7', ...w.slice(14, 19)].join(' '), false);
+  // the transcript's own spelling of dagger-alif and seatless-hamza words (HANDOFF bug since 11-01)
+  pause('«هذا … ذلك» as Google writes them (23:64)', 23, 64, [], 'بل قلوبهم في غمره من هذا ولهم اعمال من دون ذلك', true);
+  pause('«حتى» as Google writes it (23:65)', 23, 65, [], 'حتى اذا اخذنا مترفيهم', true);
+  pause('«تجأروا» as Google writes it (23:66)', 23, 66, [], 'لا تجأروا اليوم', true);
   pause('«خبير» for «بصير» (40:44, 10-31)', 40, 44, ['فستذكرون ما اقول لكم'], 'وافوض امري الى الله ان الله خبير بالعباد', false);
 }
 console.log(fails ? `${fails} failing` : 'all ok');

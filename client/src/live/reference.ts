@@ -152,7 +152,16 @@ export function readsLike(quran: Ayah[], anchor: Ayah, target: Ayah): boolean {
 // number words as normalizeArabic writes them, with or without one leading و ف ب ل
 const NUMBER_WORDS = new Set('واحد واحده احد اثنان اثنين اثني اثنتي اثنتين اثنتا اثنا ثلاث ثلاثه ثلاثين ثلاثون اربع اربعه اربعين اربعون خمس خمسه خمسين خمسون ست سته ستين ستون سبع سبعه سبعين سبعون ثمان ثماني ثمانيه ثمانين ثمانون تسع تسعه تسعين تسعون عشر عشره عشرين عشرون مائه ماءه ميه مايه مائتين الف الفين الاف الفا'.split(' '));
 export const isNumberWord = (w: string) => NUMBER_WORDS.has(w) || (/^[وفبل]/.test(w) && NUMBER_WORDS.has(w.slice(1)));
-const simWord = (w: string, x: { w: string; h?: string }) => (x.h ? Math.max(sim(w, x.w), sim(w, x.h)) : sim(w, x.w));
+/** The word as a transcript writes it, when that differs from `c`: from the printed word, the dagger alif dropped
+ *  («هَٰذَا», «ذَٰلِكَ», «حَتَّيٰ»: c has «هاذا», «حتيا»; Google writes «هذا», «حتى») and the seatless hamza written as alif
+ *  («يَجْـَٔرُونَ»: c has «يجرون»; Google writes «يجأرون»). The HANDOFF bug of 2026-11-01: `exact` failed on these words,
+ *  so the breath guard could not save a stretch holding one (23:65: 6 of 8). */
+export function spokenForm(printed: string): string | undefined {
+  if (!/[\u0670\u0654]/.test(printed)) return undefined;
+  const v = normalizeTranscript(printed.replace(/\u0670/g, '').replace(/\u0640?([\u064B-\u0652]*)\u0654/g, 'ا$1'));
+  return v && !v.includes(' ') ? v : undefined;
+}
+const simWord = (w: string, x: { w: string; h?: string; v?: string }) => Math.max(sim(w, x.w), x.h ? sim(w, x.h) : 0, x.v ? sim(w, x.v) : 0);
 
 /** The ayat he read last in one run (play_recitation's last_read). */
 export interface ReadRun {
@@ -169,7 +178,7 @@ export function readRunAfter(run: ReadRun | null, s: number, from: number, to: n
 /** Follows the reciter through the reference range using the live input transcription. */
 export class PositionTracker {
   // idx → index in ayat; t: the word as printed; h: the word as Hafs reads it, where this riwaya differs (farsh)
-  private words: { w: string; idx: number; t?: string; h?: string; pk: number }[] = [];
+  private words: { w: string; idx: number; t?: string; h?: string; v?: string; pk: number }[] = [];
   private ptr = 0;
   private pending = '';
   ayat: Ayah[] = [];
@@ -315,7 +324,11 @@ export class PositionTracker {
       const pk: number[] = [];
       printed.forEach((t, i) => normalizeTranscript(t).split(' ').filter(Boolean).forEach(() => pk.push(i)));
       const at = (k: number) => (pk.length === ws.length ? pk[k] : Math.min(printed.length - 1, Math.floor((k * printed.length) / ws.length)));
-      ws.forEach((w, k) => this.words.push({ w, idx, t: printed.length === ws.length ? printed[k] : undefined, h: hafs.get(k), pk: at(k) }));
+      ws.forEach((w, k) => {
+        const t = printed.length === ws.length ? printed[k] : undefined;
+        const v = t ? spokenForm(t) : undefined;
+        this.words.push({ w, idx, t, h: hafs.get(k), v: v !== w ? v : undefined, pk: at(k) });
+      });
     });
     this.ptr = 0;
     if (curId !== undefined) {
@@ -405,7 +418,8 @@ export class PositionTracker {
       }
       if (best >= 0) {
         // exact only in this riwaya's own form: a Hafs form reaches the word but may be a real slip
-        if (sim(w, this.words[best].w.replace(/ءا/g, 'ا')) - Math.abs(best - this.ptr) * 0.004 >= 0.88) this.exact++; // «ءامنوا» is transcribed «امنوا»
+        const W = this.words[best]; // «ءامنوا» is transcribed «امنوا»; the spoken form is this riwaya's own word too
+        if (Math.max(sim(w, W.w.replace(/ءا/g, 'ا')), W.v ? sim(w, W.v) : 0) - Math.abs(best - this.ptr) * 0.004 >= 0.88) this.exact++;
         if (best >= this.ptr && best <= this.ptr + 2) inOrder++;
         this.hits.push(best);
         if (best > this.ptr) this.jumps++;
