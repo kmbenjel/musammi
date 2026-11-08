@@ -91,7 +91,7 @@ const check = (label: string, ok: boolean, info: unknown) => {
 }
 // 2. The voice command and the tool.
 await (async () => {
-  const { s, sent, labels, voice, pause, reply, tool } = session();
+  const { s, sent, labels, bufs, voice, pause, reply, tool } = session();
   voice(0.3, 20); pause(5);
   reply('أعِد.');
   s.handle({ serverContent: { inputTranscription: { text: 'شغل ما قلت ' } } });
@@ -108,6 +108,18 @@ await (async () => {
   s.praying = true;
   const r2 = await tool('play_reciter');
   check('in salat: not played', /الصلاة/.test(r2?.result ?? '') && labels.at(-1) === null, r2);
+  s.praying = false;
+  // 2026-11-08 00:34: after «أعد» he asked «لماذا أعد؟»; the replay must be the recitation, not the question
+  s.redoAudio = { from: s.tapePos - 16000 * 3, to: s.tapePos - 16000 * 2, at: Date.now() };
+  s.judgedAudio = { from: s.tapePos - 16000, to: s.tapePos, recited: false };
+  const n0 = bufs.length;
+  s.playMyVoice('test');
+  check('after talk about a «أعد»: the recitation it was about (1.0 s)', bufs.length === n0 + 1 && Math.abs(bufs.at(-1).length / 16000 - 1) < 0.01, { n: bufs.length - n0 });
+  s.stopMyVoice();
+  s.judgedAudio = { from: s.tapePos - 16000 * 2, to: s.tapePos, recited: true };
+  s.playMyVoice('test');
+  check('after recitation: what was last judged (2.0 s)', Math.abs(bufs.at(-1).length / 16000 - 2) < 0.01, { s: bufs.at(-1).length / 16000 });
+  s.stopMyVoice();
 })();
 console.log(fails ? `${fails} FAILED` : 'all passed');
 process.exit(fails ? 1 : 0);

@@ -215,6 +215,7 @@ const ASKED_MS = 12000; // a tool's answer or an app note may be answered a gene
 // model's addition after it (the reason, the right words) is never heard: «أعد» stays bare (user 2026-11-06).
 const WORDS = { aad: { file: 'aad', text: 'أعِد' }, subhan: { file: 'subhan', text: 'سبحان الله' } } as const;
 type Word = keyof typeof WORDS;
+const REDO_REPLAY_MS = 120_000; // «شغّل ما قلت» after talk about a «أعد»: the recitation it was about, this long after
 const ECHO_AFTER_S = 5; // his transcript comes when the stretch closes, so its reply can start this long after the audio ended
 // ...and later still for a long answer: 11 s on 2026-11-07 15:52 (90 s: a 5 s answer; 107 s: its echo as his line,
 // and the model answered it «نعم، تفضل أنا معك»). Past ECHO_AFTER_S only a long echo counts: 8 words or more, most
@@ -341,7 +342,10 @@ export class RecitationSession {
   private tapePos = 0; // frames recorded in all; the ring's head is tapePos % length
   private voiceFrom: number | null = null; // where on the tape the first stretch since the last generation began
   private lastCutPos = 0; // the tape at the last cut sent
-  private judgedAudio: { from: number; to: number } | null = null; // the audio the last reply was about
+  private judgedAudio: { from: number; to: number; recited: boolean } | null = null; // the audio the last reply was about
+  // the recitation the last «أعد» was about: after his «لماذا أعد؟» the last judged audio is that question, and the
+  // replay played it instead of what was judged (2026-11-08 00:34: «لكن لم يكن ذلك من القراءة بل كلاماً عادياً»)
+  private redoAudio: { from: number; to: number; at: number } | null = null;
   private myVoice: AudioBufferSourceNode | null = null; // his recording playing
   private lastStretch: { heard: string; printed: string; where: string } | null = null; // the stretch last cut, as heard and as printed
   private redoFacts: { heard: string; printed: string; where: string } | null = null; // the stretch the last «أعد» fell on
@@ -862,14 +866,15 @@ export class RecitationSession {
    *  stretch since the generation before, up to the last cut. */
   private markJudged() {
     if (this.voiceFrom !== null && this.lastCutPos > this.voiceFrom)
-      this.judgedAudio = { from: Math.max(this.voiceFrom, this.lastCutPos - JUDGED_MAX_S * 16000), to: this.lastCutPos };
+      this.judgedAudio = { from: Math.max(this.voiceFrom, this.lastCutPos - JUDGED_MAX_S * 16000), to: this.lastCutPos, recited: this.reciting };
     this.voiceFrom = null;
   }
 
   /** Plays him the audio the last reply was about; the seconds played, 0 when there is none (or it left the ring). */
   private playMyVoice(what: string): number {
     const ctx = this.outCtx;
-    const j = this.judgedAudio;
+    const r = this.redoAudio;
+    const j = this.judgedAudio && !this.judgedAudio.recited && r && Date.now() - r.at < REDO_REPLAY_MS ? r : this.judgedAudio;
     if (!ctx || !j || j.to <= j.from || this.tapePos - j.from > this.tape.length || this.praying) {
       this.ev.onEvent(`my voice: nothing to play (${what})`);
       return 0;
@@ -1431,6 +1436,7 @@ export class RecitationSession {
       if (!this.muted && said) this.lastSaid = { text: normalizeTranscript(said), at: Date.now(), word: redo };
       this.markJudged(); // a silent generation accepted the stretch: what he asks to hear next is after it
       if (!this.muted && redo) {
+        if (this.judgedAudio?.recited) this.redoAudio = { ...this.judgedAudio, at: Date.now() };
         this.redoFacts = this.lastStretch;
         if (this.lastStretch) this.redos.push({ at: Date.now(), ...this.lastStretch });
         this.ev.onVerdict?.('redo');
