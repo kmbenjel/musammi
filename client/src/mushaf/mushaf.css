@@ -141,8 +141,8 @@
 /* The ayah's end: the font's own ornament, 30% larger (user 2026-11-08: «الزخرفات أكبر… والرقم داخلها أكبر ومتوسطاً،
    ليس ملتصقاً بالأعلى»). The digits sit in a box laid exactly over the ring's hole, measured on a 1000 px render of
    KFGQPC Warsh uni06DD: centre 0.380em from the glyph's origin and 0.313em above the baseline, 0.58em across (the
-   centre of the whole glyph, finial and beads included, is 0.27em: digits put there look low). Flexbox centres them
-   and text-box-trim makes their box their own ink (cap height to baseline), so no font's line metrics move them. */
+   centre of the whole glyph, finial and beads included, is 0.27em: digits put there look low). The digits are the
+   font's own, in an SVG over the hole with an exact baseline (MushafView AyahNumber). */
 .num {
   color: var(--ink);
   position: relative;
@@ -157,24 +157,14 @@
   bottom: 0.023em;
   width: 0.58em;
   height: 0.58em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow: visible;
 }
 
-.num .n {
-  font-family: var(--ui);
-  font-size: 0.34em;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  text-box: trim-both cap alphabetic;
-  white-space: nowrap;
-}
-
-.num .n3 {
-  font-size: 0.27em;
-  letter-spacing: -0.03em;
+.num .d text {
+  fill: currentColor;
+  font-family: inherit;
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 
 /* hidden: only the words recited right are written; the rest keep their place */

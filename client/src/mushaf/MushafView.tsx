@@ -170,9 +170,7 @@ const Line: React.FC<{ line: PageLine; short: boolean; kashida: Kashida; quran: 
             {word}
             <span className="num" role="img" aria-label={String(x.a)}>
               {'۝'}
-              <span className="d">
-                <span className={x.a > 99 ? 'n n3' : 'n'}>{x.a}</span>
-              </span>
+              <AyahNumber n={x.a} />
             </span>
           </span>
         ) : (
@@ -183,3 +181,35 @@ const Line: React.FC<{ line: PageLine; short: boolean; kashida: Kashida; quran: 
   }
   return <div className={`ml${short ? ' short' : ''}`}>{items}</div>;
 };
+
+
+// The number inside the ayah ornament, in the mushaf font's own digits, drawn in an SVG laid over the ring's hole
+// (mushaf.css .num .d): its baseline is exact, so the digits' ink is centred whatever the screen's fonts (user
+// 2026-11-08: «يظهر الرقم نازلاً، ولا يعجبني خطّ الرقم»). Advances and ink (yMin, yMax) of KFGQPC Warsh, 2048 upm.
+const DIGITS = {
+  latin: { chars: '0123456789', adv: [800, 547, 906, 793, 953, 876, 880, 884, 818, 880], ink: [[5, 1126], [-1, 1122], [0, 1127], [2, 1130], [0, 1122], [0, 1121], [1, 1122], [0, 1121], [2, 1128], [4, 1125]] },
+  arabic: { chars: '٠١٢٣٤٥٦٧٨٩', adv: [277, 311, 370, 505, 417, 380, 459, 491, 519, 434], ink: [[210, 402], [1, 553], [0, 543], [0, 543], [-2, 549], [87, 463], [0, 546], [-1, 547], [-3, 545], [-4, 544]] },
+} as const;
+export type DigitStyle = keyof typeof DIGITS;
+export const DIGIT_STYLE: DigitStyle = 'latin';
+
+export function ayahNumberLayout(n: number, style: DigitStyle = DIGIT_STYLE) {
+  const d = DIGITS[style];
+  const idx = String(n).split('').map(Number);
+  const em = (u: number) => u / 2048;
+  const width = em(idx.reduce((w, k) => w + d.adv[k], 0));
+  const top = em(Math.max(...idx.map((k) => d.ink[k][1]))), bot = em(Math.min(...idx.map((k) => d.ink[k][0])));
+  const size = Math.min(70 / width, 46 / (top - bot)); // of the hole's 100: 70 across, 46 high at most
+  return { text: idx.map((k) => d.chars[k]).join(''), size, y: 50 + ((top + bot) / 2) * size };
+}
+
+function AyahNumber({ n }: { n: number }) {
+  const { text, size, y } = ayahNumberLayout(n);
+  return (
+    <svg className="d" viewBox="0 0 100 100" aria-hidden="true">
+      <text x="50" y={y.toFixed(1)} fontSize={size.toFixed(1)} textAnchor="middle">
+        {text}
+      </text>
+    </svg>
+  );
+}
