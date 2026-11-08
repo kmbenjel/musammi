@@ -153,6 +153,15 @@ export function wordsSpan(
   return end > start ? { start: start / 1000, end: end / 1000, from: { ayah: A.a, word: k } } : null;
 }
 
+/** Pure: how many words, from word `first` of ayah `a`, a fath of `count` words keeps when it stops where the recorded
+ *  reciter really paused (a jumla start after `first`), even for the wasl: never mid-madd, never an ugly stop, and
+ *  short (user 2026-11-08: «عند علامة الوقف أو وقف فعلي من القارئ ولو لأجل الوصل»). */
+export function pausedCount(list: AyahWords[], a: number, first: number, count: number): number {
+  const x = list.find((y) => y.a === a);
+  const m = x?.j.find((k) => k > first);
+  return m !== undefined && m - first < count ? m - first : count;
+}
+
 const wordFiles = new Map<string, Promise<AyahWords[] | null>>();
 
 /** A surah's word timings in this recording; null when it has none (yet). */

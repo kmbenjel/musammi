@@ -22,7 +22,7 @@ import { DEFAULT_PAUSES, PauseSegmenter } from './pauses';
 import { readRunAfter, type ReadRun, formatReference, MushafLocator, PositionTracker, rangeFrom, readsLike, type Ayah, type HafsDiffs, type SurahInfo } from './reference';
 import { normalizeTranscript } from '../utils/arabic';
 import { libraryNote, riwayaBrief } from './prompt';
-import { namesAnEnd, phraseSpan, recitationSpan, reciterOf, RECITERS, recitersText, surahWords, type AyahWords, type Span } from './audio';
+import { namesAnEnd, pausedCount, phraseSpan, recitationSpan, reciterOf, RECITERS, recitersText, surahWords, type AyahWords, type Span } from './audio';
 import { FathPlayer } from './fath';
 import { riwayaOf, type RiwayaKey } from './riwayat';
 import { frameLevel, holdsStopWord, StopListener } from './stopword';
@@ -1106,6 +1106,7 @@ export class RecitationSession {
 
   private async playFath(what: string, next: string) {
     const span = await this.fathSpan().catch(() => null);
+    if (span && span.count < (this.tracker.fathPlace()?.count ?? 0)) next = next.split(' ').slice(0, span.count).join(' ');
     if (span && !this.stopped) {
       this.fathClip = true;
       this.send({ realtimeInput: { text: `(ملاحظة آلية من التطبيق: ${what}. فتح عليه التطبيق بصوت القارئ المسجّل بهذه الكلمات: «${next}». لا تقل شيئاً، واسمعه يكمل.)` } });
@@ -1129,12 +1130,16 @@ export class RecitationSession {
   }
 
   /** The recording of the fath's words (tracker.fathPlace) in the riwaya's default reciter, when it has word timings. */
-  private async fathSpan(): Promise<Span | null> {
+  private async fathSpan(): Promise<(Span & { count: number }) | null> {
     const m = this.deps.mushaf;
     const p = this.tracker.fathPlace();
     if (!p) return null;
-    const r = await phraseSpan(m.key, p.ayah.s, { ayah: p.ayah.a, word: p.word }, { ayah: p.ayah.a, word: p.word + p.count - 1 }, { at: 'word', until: 'word', reciter: this.prefReciter || undefined });
-    return 'error' in r || !r.exact ? null : r;
+    // up to the waqf mark (fathPlace), or sooner where the recorded reciter paused
+    const rec = reciterOf(m.key, this.prefReciter || undefined) ?? RECITERS[m.key][0];
+    const list = await surahWords(m.key, rec, p.ayah.s);
+    const count = list ? pausedCount(list, p.ayah.a, p.word, p.count) : p.count;
+    const r = await phraseSpan(m.key, p.ayah.s, { ayah: p.ayah.a, word: p.word }, { ayah: p.ayah.a, word: p.word + count - 1 }, { at: 'word', until: 'word', reciter: this.prefReciter || undefined });
+    return 'error' in r || !r.exact ? null : { ...r, count };
   }
 
   /** The recording of the ayah he is in, fetched now so that a fath in it starts at once (once per ayah). */
