@@ -298,7 +298,11 @@ export class PositionTracker {
     this.words = [];
     ayat.forEach((x, idx) => {
       // letters only: the sajda sign «۩» is a token of its own in `c` (13 ayat), which put every printed word out of line
-      const ws = normalizeTranscript(x.c || x.t).split(' ').filter((w) => /[\u0621-\u064A]/.test(w));
+      // and a waqf mark printed inside a word before its last alif («مَفْعُولۖاً» 4:46, «حِوَلۖاٗ» 18:103) split it in two
+      const ws = normalizeTranscript(x.c || x.t)
+        .split(' ')
+        .filter((w) => /[\u0621-\u064A]/.test(w))
+        .reduce<string[]>((out, w) => (w === 'ا' && out.length ? (out[out.length - 1] += w) : out.push(w), out), []);
       const printed = x.t.split(/\s+/).filter((t) => /[\u0621-\u064A\u0671-\u06D3]/.test(t));
       const hafs = new Map<number, string>();
       for (const [r, h] of diffs[`${x.s}:${x.a}`] ?? []) {
