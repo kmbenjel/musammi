@@ -78,6 +78,9 @@ r = run([{ heard: ['انا في سوره الفرقان '], said: 'تفضّل، 
 check('the same remark again after one word: muted (repeat)', r.teacher.length === 1 && r.muted.join() === 'repeat', r);
 r = run([{ heard: ['نعم '], said: 'بسم الله.' }, { said: 'السؤال الأول.', note: true }]);
 check('a reply to an app note with nothing heard: played', r.teacher.length === 2 && !r.muted.length, r);
+// 2026-11-08 02:44: the resume note, then a bare «أعد» on nothing at 6 s
+r = run([{ heard: ['نعم '], said: 'بسم الله.' }, { said: 'أعِد', note: true }]);
+check('«أعد» on nothing right after an app note: muted', r.teacher.length === 1 && r.muted.join() === 'nothing heard', r);
 r = run([{ heard: ['نعم '], said: 'بسم الله.', note: true }, { said: 'السؤال الأول.', gap: 2000 }, { said: 'السؤال الأول: اقرأ.', gap: 20000 }]);
 check('a note answered a generation later: played; 20 s on, no longer', r.teacher.length === 2 && r.muted.join() === 'nothing heard', r);
 r = run([{ heard: [w.slice(8, 11).join(' ') + ' '], said: 'أَضْلَلْتُمْ عِبَادِي هَٰٓؤُلَآءِ' }]);

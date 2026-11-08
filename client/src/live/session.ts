@@ -1046,7 +1046,9 @@ export class RecitationSession {
     // silence, «أعد» again on a breath; sessions 2026-11-05 01:38, 2026-11-06 09:27)
     const asked = this.afterTool || this.toolPending || this.fathPending || Date.now() - this.toolAt < ASKED_MS || Date.now() - this.noteAt < ASKED_MS || (!!this.exam && !redo);
     // His own voice that Google wrote nothing of (a question) is answered; a bare «أعد» on words the app never saw is not.
-    if (this.heardWords === 0 && !asked && (redo || this.voiceSinceGen < UNHEARD_VOICE_MS)) return 'nothing heard';
+    // A note is not a stretch: «أعد» on nothing stays muted after one too (2026-11-08 02:44: the resume note, then a
+    // bare «أعد» at 6 s, which then refused his real move to 19:49 as a slip after «أعد»).
+    if (this.heardWords === 0 && ((redo && !this.exam) || (!asked && this.voiceSinceGen < UNHEARD_VOICE_MS))) return 'nothing heard';
     // the same remark again, with hardly anything new heard
     const recent = Date.now() - this.lastSaid.at < REPEAT_MS;
     if (recent && redo && this.lastSaid.word === redo && this.heardWords < 2) return 'repeat';
