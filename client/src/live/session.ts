@@ -178,6 +178,7 @@ const UNHEARD_CUTS = 4; // stretches cut and sent with no word back since: the m
 // His speech that Google wrote nothing of (a question, 2026-11-03 «لماذا أعيد؟», «هل من خطأ؟»): this much voice since
 // the last generation means the reply answers him, not nothing. A breath or the echo of «أعد» stays well under it.
 const UNHEARD_VOICE_MS = 2000;
+const UNFOLLOWED = '(تلاوة لم أتابعها)'; // recitation followed nowhere in the mushaf: never Google's letters
 const UNWRITTEN = '(كلامٌ لم يُكتب)'; // his line on the screen when he spoke and Google wrote nothing
 const REDO_HOLD_MS = 20000; // after «أعد» he repeats from his place: an unannounced open_mushaf elsewhere is the slip itself
 // In salat the voice is low. The phone's recording of 2026-11-04 06:08 (mic max 0.01–0.11) gave Gemini nothing in 6 of 6
@@ -1269,7 +1270,32 @@ export class RecitationSession {
     const words = this.youWords();
     if (words.length) return words;
     if (!heard || this.talkedLast || !this.youOnTrack) return undefined;
-    return plain(this.you).split(/\s+/).filter((w) => w.length >= 2).map((t) => ({ t, ok: false }));
+    return this.elsewhere(normalizeTranscript(plain(this.you)).split(' ').filter((w) => w.length >= 2)) ?? [{ t: UNFOLLOWED, ok: false }];
+  }
+
+  /** Recitation not followed at his place: the mushaf's own words where it is found in the whole mushaf (all in doubt:
+   *  it is not his place), never Google's letters (user 2026-11-08: «هل نأمن من خلط ما ليس بصحيح بالكتابة المصحفية»;
+   *  15:52 «ألم تر أن الله يسجد له…» was shown as heard). */
+  private elsewhere(heard: string[]): YouWord[] | undefined {
+    const m = this.deps.mushaf;
+    if (!m || heard.length < 3) return undefined;
+    this.locator ??= new MushafLocator(m.quran);
+    const found = this.locator.locate(heard, undefined, true);
+    if (!found) return undefined;
+    const t = new PositionTracker();
+    t.setRange(rangeFrom(m.quran, found.ayah.s, found.ayah.a));
+    const rest = heard.slice(found.from);
+    t.feed(rest.join(' ') + ' ');
+    // the place must read like what was heard: most words exact and in order there, or nothing is shown from it
+    if (t.hits.length < 3 || t.exact < rest.length * 0.7 || !t.onTrack) return undefined;
+    const out: YouWord[] = [];
+    for (let k = Math.min(...t.hits); k <= Math.max(...t.hits); k++) {
+      const w = t.wordAt(k);
+      if (!w) continue;
+      out.push({ t: w.text, ok: false });
+      if (w.num) out.push({ t: w.num, ok: false });
+    }
+    return out.length ? out : undefined;
   }
   private youInMushaf(): string | undefined {
     const from = this.youFrom;

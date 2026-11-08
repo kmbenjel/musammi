@@ -90,14 +90,24 @@ const line = (ws?: YouWord[]) => ws?.map((w) => (w.ok ? w.t : `[${w.t}]`)).join(
   const last = you.at(-1)!;
   check('talk: no words, the transcript stays, verdict talk', last.words === undefined && last.text === 'هل أخطأت يا شيخ' && verdicts.at(-1) === 'talk', { last, verdicts });
 }
-// Garbled recitation after an on-track stretch: written as heard, all in doubt.
+// Garbled recitation after an on-track stretch: never Google's letters (user 2026-11-08), all in doubt.
 {
   const w = words(25, 17);
   const { you, verdicts, hear } = session(25, 17, 8);
   hear(w.slice(8, 12).join(' ') + ' '); // on track
   hear('ويوم نحشرهم قال ');
   const last = you.at(-1)!;
-  check('nothing followed after an on-track stretch: the heard words, all dim, verdict doubt', last.words?.length === 3 && last.words.every((x) => !x.ok) && verdicts.at(-1) === 'doubt', { line: line(last.words), verdicts });
+  check('nothing followed, found nowhere: «(تلاوة لم أتابعها)», verdict doubt', last.words?.length === 1 && last.words[0].t === '(تلاوة لم أتابعها)' && !last.words[0].ok && verdicts.at(-1) === 'doubt', { line: line(last.words), verdicts });
+}
+// 2026-11-07 15:52: after 25:32 he recited 22:18; it was shown in Google's letters
+{
+  const w = words(25, 32);
+  const { you, hear } = session(25, 32, 6);
+  hear(w.slice(6, 10).join(' ') + ' '); // on track
+  hear('الم تر ان الله يسجد له من في السماوات ومن في الارض ');
+  const last = you.at(-1)!;
+  const ws = last.words ?? [];
+  check('found elsewhere (22:18): the mushaf\'s own vowelled words, all dim', ws.length >= 8 && ws.every((x) => !x.ok) && ws.some((x) => /يَسْجُدُ/.test(x.t)), { line: line(ws) });
 }
 // The «أعد»: verdict redo.
 {

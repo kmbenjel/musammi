@@ -93,7 +93,8 @@ export class MushafLocator {
   }
 
   /** The ayah, and the index in `recited` of the first word that belongs there. */
-  locate(recited: string[], skip: (a: Ayah) => boolean = () => false): { ayah: Ayah; from: number } | null {
+  /** `loose`: the best place even when another one comes close (the caller checks it word by word: the screen's line). */
+  locate(recited: string[], skip: (a: Ayah) => boolean = () => false, loose = false): { ayah: Ayah; from: number } | null {
     const votes = new Map<number, number>();
     const first = new Map<number, number>(); // the first recited word that fits there
     recited.forEach((w, i) => {
@@ -114,7 +115,7 @@ export class MushafLocator {
     }
     let second = 0;
     for (const st of votes.keys()) if (Math.abs(st - best) > 8) second = Math.max(second, score(st));
-    if (bestScore < 3 || bestScore < second * 1.5 + 1) return null;
+    if (bestScore < 3 || (loose ? bestScore <= second : bestScore < second * 1.5 + 1)) return null;
     // the window may still hold words from before the jump: the place starts at the first word that fits
     const from = first.get(best) ?? 0;
     return { ayah: this.quran[this.words[Math.max(0, Math.min(best + from, this.words.length - 1))]], from };
@@ -296,7 +297,8 @@ export class PositionTracker {
     this.ayat = ayat;
     this.words = [];
     ayat.forEach((x, idx) => {
-      const ws = normalizeTranscript(x.c || x.t).split(' ').filter(Boolean);
+      // letters only: the sajda sign «۩» is a token of its own in `c` (13 ayat), which put every printed word out of line
+      const ws = normalizeTranscript(x.c || x.t).split(' ').filter((w) => /[\u0621-\u064A]/.test(w));
       const printed = x.t.split(/\s+/).filter((t) => /[\u0621-\u064A\u0671-\u06D3]/.test(t));
       const hafs = new Map<number, string>();
       for (const [r, h] of diffs[`${x.s}:${x.a}`] ?? []) {
