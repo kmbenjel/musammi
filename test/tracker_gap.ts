@@ -169,6 +169,9 @@ fails += +!run('start: a refrain does not place him', 22, 1, [h(3).slice(0, 8)],
   pause('the last word still in feed\'s buffer, right', 2, 281, [w.slice(0, 10).join(' ')], w.slice(10, 15).join(' '), true, '');
   pause('the last word still in feed\'s buffer, wrong', 2, 281, [w.slice(0, 10).join(' ')], [...w.slice(10, 14), 'سبحان'].join(' '), false, '');
   pause('«إن الله خبير» then a stop', 40, 44, ['فستذكرون ما اقول لكم وافوض امري الى الله'], 'ان الله خبير', false, '');
+  // 25:59 on 2026-11-08 00:34: «في ستة أيام» written «في 7 أيام», two false «أعد»
+  pause('«7 أيام» for «ستة أيام» (25:59, 11-08)', 25, 59, ['الذي خلق السماوات والارض'], 'وما بينهما في 7 أيام ثم', true);
+  pause('a figure where the mushaf has no number word', 2, 281, [w.slice(0, 10).join(' ')], [...w.slice(10, 13), '7', ...w.slice(14, 19)].join(' '), false);
   pause('«خبير» for «بصير» (40:44, 10-31)', 40, 44, ['فستذكرون ما اقول لكم'], 'وافوض امري الى الله ان الله خبير بالعباد', false);
 }
 console.log(fails ? `${fails} failing` : 'all ok');

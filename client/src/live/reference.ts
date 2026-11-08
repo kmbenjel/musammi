@@ -148,6 +148,9 @@ export function readsLike(quran: Ayah[], anchor: Ayah, target: Ayah): boolean {
 }
 
 /** The input transcription leans to Hafs: at a farsh word its Hafs form also counts as reaching that word. */
+// number words as normalizeArabic writes them, with or without one leading و ف ب ل
+const NUMBER_WORDS = new Set('واحد واحده احد اثنان اثنين اثني اثنتي اثنتين اثنتا اثنا ثلاث ثلاثه ثلاثين ثلاثون اربع اربعه اربعين اربعون خمس خمسه خمسين خمسون ست سته ستين ستون سبع سبعه سبعين سبعون ثمان ثماني ثمانيه ثمانين ثمانون تسع تسعه تسعين تسعون عشر عشره عشرين عشرون مائه ماءه ميه مايه مائتين الف الفين الاف الفا'.split(' '));
+export const isNumberWord = (w: string) => NUMBER_WORDS.has(w) || (/^[وفبل]/.test(w) && NUMBER_WORDS.has(w.slice(1)));
 const simWord = (w: string, x: { w: string; h?: string }) => (x.h ? Math.max(sim(w, x.w), sim(w, x.h)) : sim(w, x.w));
 
 /** The ayat he read last in one run (play_recitation's last_read). */
@@ -346,13 +349,32 @@ export class PositionTracker {
     return this.ptr;
   }
 
+  /** Digits in the transcript stand for a number word the hearing wrote as a figure («7 أيام» for «ستة أيام», 25:59 on
+   *  2026-11-08 00:34: two false «أعد»). The mushaf has no figures: one where the mushaf has a number word next is
+   *  that word (we cannot tell which number he said, and when unsure there is no «أعد»). */
+  private numbersAsWords(text: string): string {
+    let k = this.ptr;
+    return text
+      .split(' ')
+      .map((t) => {
+        if (!/^[0-9٠-٩]+[،.؟!]?$/.test(t)) {
+          if (t.length >= 2) k++;
+          return t;
+        }
+        for (let j = k; j < Math.min(k + 2, this.words.length); j++)
+          if (isNumberWord(this.words[j].w)) return (k = j + 1), this.words[j].w;
+        return t;
+      })
+      .join(' ');
+  }
+
   /** Feed incremental transcription chunks. Returns true when the position moved. */
   feed(chunk: string): boolean {
     this.pending += chunk;
     // Only consume complete words (a chunk may end mid-word).
     const lastSpace = this.pending.lastIndexOf(' ');
     if (lastSpace < 0) return false;
-    const done = this.pending.slice(0, lastSpace);
+    const done = this.numbersAsWords(this.pending.slice(0, lastSpace));
     this.pending = this.pending.slice(lastSpace + 1);
     const before = this.ptr;
     this.placeStretch(normalizeTranscript(done).split(' ').filter((w) => w.length >= 2));
