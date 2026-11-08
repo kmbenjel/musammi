@@ -1,22 +1,25 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { RecitationSession, type MushafData, type OptionName, type Options, type Place, type SessionState, type ShownCard, type VoiceLink, type WordAt } from './live/session';
+import { RecitationSession, type MushafData, type OptionName, type Options, type Place, type SessionState, type ShownCard, type VoiceLink, type WordAt, type YouWord, type Verdict } from './live/session';
 import { RIWAYAT, riwayaOf, type RiwayaKey } from './live/riwayat';
 import { recordMic } from './live/recorder';
 import { loadRiwaya, setRiwaya, type SurahMeta } from './services/quranData';
 import { generateTestExam, type TestQuestion } from './services/testGenerator';
 import { listenTokenWithOwnKey, loadGeminiKey, saveGeminiKey, tokenWithOwnKey } from './services/geminiKey';
 import { KeySheet } from './KeySheet';
+import { BookOpen } from 'lucide-react';
+import type { Mode } from './live/prompt';
 import { normalizeTranscript } from './utils/arabic';
 import { MushafScreen } from './mushaf/MushafScreen';
+import { BUILD, reloadIfStale } from './update';
 import { firstAyahOn, loadLayout, pageIndex, pageWords, wordKey, type MushafLayout } from './mushaf/layout';
 import type { MushafMarks } from './mushaf/MushafView';
 import type { CompactAyah } from './services/quranData';
 
 // m: the stretch as printed in the mushaf (read right): shown instead of the transcript, which is still saved
 // gone: taken off the screen, still saved
-type Line = { id: number; who: 'you' | 'teacher'; text: string; live?: boolean; m?: string; gone?: boolean };
+type Line = { id: number; who: 'you' | 'teacher'; text: string; live?: boolean; m?: string; words?: YouWord[]; gone?: boolean };
 // at: when the session started (its id: every save of it goes under it); end: when this copy of it was taken
-type Past = { at: number; end?: number; riwaya?: RiwayaKey; where?: { s: number; a: number }[]; lines: { who: 'you' | 'teacher'; text: string; m?: string }[]; events?: string[] };
+type Past = { at: number; end?: number; riwaya?: RiwayaKey; where?: { s: number; a: number }[]; lines: { who: 'you' | 'teacher'; text: string; m?: string; words?: YouWord[] }[]; events?: string[] };
 
 const ACCESS_KEY = 'hifz_warsh_access_key';
 const HISTORY_KEY = 'hifz_warsh_history';
@@ -56,10 +59,12 @@ const store = {
   },
 };
 
-// The mushaf mode (client/src/mushaf/) at /mushaf: the same origin as the app, so the keys saved here serve it too.
-const MUSHAF = /^\/mushaf(\/|$)/.test(location.pathname);
-const MODE = MUSHAF ? ('mushaf' as const) : undefined;
-if (MUSHAF) document.title = 'المُسَمِّع · المصحف';
+// The mushaf mode (client/src/mushaf/): the page instead of the conversation. Opened at /mushaf (the same origin as
+// the app, so the keys saved here serve it too), or switched to in the app by voice («افتح المصحف», set_option screen)
+// or the mushaf button, and back; the address follows, so a reload or an installed app keeps the mode.
+const PATH_MUSHAF = /^\/mushaf(\/|$)/.test(location.pathname);
+const TITLE = document.title;
+const MUSHAF_TITLE = 'المُسَمِّع · المصحف';
 
 // Guests the owner lets try the app on his Gemini key: their key starts «g-» (worker GUEST_KEYS). Their audio is not kept.
 const isGuest = (key: string | null) => !!key?.startsWith('g-');
@@ -73,12 +78,14 @@ function takeAccessKey(): string | null {
     url.searchParams.delete('k');
     history.replaceState(null, '', url.pathname + url.search + url.hash);
   }
-  const key = store.get(ACCESS_KEY);
-  // so that «Install app» bakes the key into the home-screen app, and the mushaf mode installs as an app of its own
-  // (see /manifest.json on the server)
-  const q = new URLSearchParams({ ...(key && { k: key }), ...(MUSHAF && { mode: 'mushaf' }) }).toString();
-  if (q) document.querySelector('link[rel=manifest]')?.setAttribute('href', '/manifest.json?' + q);
-  return key;
+  return store.get(ACCESS_KEY);
+}
+
+// so that «Install app» bakes the key into the home-screen app, and the mushaf mode installs as an app of its own
+// (see /manifest.json on the server)
+function setManifest(key: string | null, mushaf: boolean) {
+  const q = new URLSearchParams({ ...(key && { k: key }), ...(mushaf && { mode: 'mushaf' }) }).toString();
+  document.querySelector('link[rel=manifest]')?.setAttribute('href', '/manifest.json' + (q ? '?' + q : ''));
 }
 
 /** What is on screen: mistakes gone, and all he says between two remarks of the teacher one running text, however
@@ -179,6 +186,8 @@ export const App: React.FC = () => {
   const [lines, setLines] = useState<Line[]>([]);
   const [speaking, setSpeaking] = useState(false);
   const [link, setLink] = useState<VoiceLink>('quiet');
+  const [verdict, setVerdict] = useState<Verdict | ''>(''); // the tracker's word on the last stretch: the orb's colour
+  const verdictTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [heard, setHeard] = useState(0); // each new value is one ripple of the orb
   const [position, setPosition] = useState('');
   const [praying, setPraying] = useState(false);
@@ -187,11 +196,14 @@ export const App: React.FC = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [hideText, setHideText] = useState(false); // the writing hidden, this session only (user 2026-11-06)
   const [textSize, setTextSize] = useState(() => (TEXT_SIZES.includes(Number(store.get(TEXT_SIZE_KEY))) ? Number(store.get(TEXT_SIZE_KEY)) : 1));
-  const [riwaya, setRiwayaState] = useState<RiwayaKey>(() => (MUSHAF ? 'warsh' : riwayaOf(store.get(RIWAYA_KEY)).key));
+  const [riwaya, setRiwayaState] = useState<RiwayaKey>(() => (PATH_MUSHAF ? 'warsh' : riwayaOf(store.get(RIWAYA_KEY)).key));
   const [showRiwayat, setShowRiwayat] = useState(false);
   const [mushaf, setMushaf] = useState<string | null>(null); // the recorded mushaf is playing
   const [veil, setVeil] = useState(true); // in salat the screen goes dark (it must stay on); a tap lifts it
-  // mushaf mode: the page shown, the writing hidden, the words written, where a «أعد» fell, the recording's word
+  // mushaf mode: the page instead of the conversation; then the page shown, the writing hidden, the words written,
+  // where a «أعد» fell, the recording's word. The page's state is kept in both modes, so a switch shows it as it is.
+  const [mushafMode, setMushafMode] = useState(PATH_MUSHAF);
+  const modeRef = useRef<Mode>(PATH_MUSHAF ? 'mushaf' : undefined); // what the session's closures read
   const [layout, setLayout] = useState<MushafLayout | null>(null);
   const [book, setBook] = useState<{ quran: Map<number, CompactAyah>; surahs: SurahMeta[] } | null>(null);
   // ?p=50 opens that page (a link to a page); else the page he left the mushaf on
@@ -232,15 +244,41 @@ export const App: React.FC = () => {
 
   useEffect(() => () => session.current?.stop(), []);
 
+  // a page left open across a deploy runs old code (update.ts): back after 5 min away with no session, it reloads
   useEffect(() => {
-    if (!MUSHAF) return;
+    let hiddenAt = 0;
+    const onVis = () => {
+      if (document.hidden) hiddenAt = Date.now();
+      else if (hiddenAt && Date.now() - hiddenAt > 5 * 60_000 && !session.current) reloadIfStale(() => !session.current);
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
+  // the mode on the screen: its title, address and manifest (what «Install app» installs); the mushaf's data, once
+  useEffect(() => {
+    modeRef.current = mushafMode ? 'mushaf' : undefined;
+    document.title = mushafMode ? MUSHAF_TITLE : TITLE;
+    setManifest(accessKey, mushafMode);
+    const path = mushafMode ? '/mushaf' : '/';
+    if (location.pathname !== path) window.history.replaceState(null, '', path + location.search + location.hash);
+    if (!mushafMode || layout) return;
     loadLayout().then(setLayout).catch((e) => setNote(String(e.message || e)));
     loadRiwaya('warsh')
       .then((d) => setBook({ quran: new Map(d.quran.map((x) => [x.id, x])), surahs: d.surahs }))
       .catch(() => setNote('تعذّر تحميل بيانات المصحف'));
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mushafMode]);
   const pageOf = useMemo(() => (layout ? pageIndex(layout) : null), [layout]);
   const wordsOn = useMemo(() => (layout ? pageWords(layout) : null), [layout]);
+  // switched to the page mid-session: it opens where he is
+  useEffect(() => {
+    if (!mushafMode || !pageOf || !book) return;
+    const at = session.current?.place();
+    const id = at && [...book.quran.values()].find((x) => x.s === at.s && x.a === at.a)?.id;
+    const p = id && pageOf.get(wordKey(id, 0));
+    if (p) setPage(p);
+  }, [mushafMode, pageOf, book]);
   // what the session's handlers read: they were made when it started
   const now = useRef({ pageOf, wordsOn, hidden });
   now.current = { pageOf, wordsOn, hidden };
@@ -306,11 +344,11 @@ export const App: React.FC = () => {
   const authed = () => ({ 'X-Access-Key': accessKey ?? '' });
 
   async function getToken(handle: string | null, key: RiwayaKey) {
-    if (geminiKey) return tokenWithOwnKey(geminiKey, handle, key, MODE); // minted here: the key goes only to Google
+    if (geminiKey) return tokenWithOwnKey(geminiKey, handle, key, modeRef.current); // minted here: the key goes only to Google
     const res = await fetch('/api/live/token', {
       method: 'POST',
       headers: { ...authed(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ handle, riwaya: key, mode: MODE }),
+      body: JSON.stringify({ handle, riwaya: key, mode: modeRef.current }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'تعذّر بدء الجلسة');
@@ -384,25 +422,33 @@ export const App: React.FC = () => {
     };
   }
 
-  function upsertYou(text: string, done: boolean, m?: string) {
+  function upsertYou(text: string, done: boolean, m?: string, words?: YouWord[]) {
+    const ws = words?.length ? words : undefined;
     setLines((prev) => {
       const last = prev[prev.length - 1];
       if (last?.who === 'you' && last.live) {
         const before = prev[prev.length - 2];
         // a stretch read right after another one read right: one running text, as in the mushaf
         if (done && m && before?.who === 'you' && before.m)
-          return [...prev.slice(0, -2), { ...before, text: before.text + ' ' + text, m: before.m + ' ' + m }];
-        return [...prev.slice(0, -1), { ...last, text, live: !done, m }];
+          return [...prev.slice(0, -2), { ...before, text: before.text + ' ' + text, m: before.m + ' ' + m, words: before.words && ws ? [...before.words, ...ws] : undefined }];
+        return [...prev.slice(0, -1), { ...last, text, live: !done, m, words: ws }];
       }
       // the stretch's final text arrives after the teacher's reply already closed its line
       if (done && prev.slice(-3).some((l) => l.who === 'you' && (l.text === text || l.text.endsWith(' ' + text)))) return prev;
-      return [...prev, { id: ++lineId.current, who: 'you' as const, text, live: !done, m }];
+      return [...prev, { id: ++lineId.current, who: 'you' as const, text, live: !done, m, words: ws }];
     });
+  }
+
+  /** The orb's colour: right and doubt hold until the next stretch, the «أعد» flashes and clears. */
+  function onVerdict(v: Verdict) {
+    clearTimeout(verdictTimer.current);
+    setVerdict(v);
+    if (v === 'redo') verdictTimer.current = setTimeout(() => setVerdict(''), 1500);
   }
 
   function addTeacher(text: string, m?: string) {
     const id = ++lineId.current;
-    if (MUSHAF) setTeacherNow({ id, text: m ?? text });
+    if (modeRef.current === 'mushaf') setTeacherNow({ id, text: m ?? text });
     setLines((prev) => {
       // close any live line of mine before the teacher speaks
       const closed = prev.map((l) => (l.live ? { ...l, live: false } : l));
@@ -449,6 +495,7 @@ export const App: React.FC = () => {
 
   function onShow(ayahId: number, recording: boolean) {
     follow({ id: ayahId, k: 0 });
+    if (modeRef.current !== 'mushaf') return; // the conversation has its card; the page keeps its state
     if (recording) hiddenBefore.current ??= now.current.hidden;
     setHidden(false);
   }
@@ -470,6 +517,18 @@ export const App: React.FC = () => {
       const id = firstAyahOn(layout, p);
       if (id) session.current?.openAt(id, p);
     }, OPEN_PAGE_MS);
+  }
+
+  /** The screen: the mushaf page or the conversation (set_option screen, or the buttons). The session is told: its
+   *  rules change at once, its prompt at the next handover. The page is Warsh only, so another riwaya is switched
+   *  first; by voice the session has done both already. */
+  function switchScreen(mushaf: boolean, how: 'voice' | 'button') {
+    modeRef.current = mushaf ? 'mushaf' : undefined;
+    setMushafMode(mushaf);
+    if (how !== 'button') return;
+    const s = session.current;
+    if (mushaf && riwayaRef.current !== 'warsh') (s ? s.pickRiwaya('warsh') : switchRiwaya('warsh')).catch(() => {});
+    s?.setMode(mushaf ? 'mushaf' : undefined, 'button');
   }
 
   async function start(auto = false) {
@@ -499,18 +558,20 @@ export const App: React.FC = () => {
         events.current.push(`${t}s ${what}`);
         if (events.current.length > 20000) events.current.splice(0, 1000);
       };
+      if (BUILD) onEvent(`build ${BUILD}`);
       const record = accessKey && !isGuest(accessKey) ? (stream: MediaStream) => recordMic(stream, at, accessKey, onEvent) : undefined;
       // mushaf mode: he recites from the page shown; the last session's place only if it is on it
       const back = lastPlace();
       const backId = back && book ? [...book.quran.values()].find((x) => x.s === back.s && x.a === back.a)?.id : undefined;
-      const resume = !MUSHAF || (backId && pageOf?.get(wordKey(backId, 0)) === page) ? back : undefined;
+      const resume = !mushafMode || (backId && pageOf?.get(wordKey(backId, 0)) === page) ? back : undefined;
       // a setting changed by voice: the screen follows, and a saved one is kept for the next sessions
       const setOption = (name: OptionName, value: string, save: boolean) => {
-        if (name === 'text') setHideText(value === 'hidden');
+        if (name === 'text') (modeRef.current === 'mushaf' ? setHidden : setHideText)(value === 'hidden');
+        if (name === 'screen') switchScreen(value === 'mushaf', 'voice');
         if (save) store.set(OPTIONS_KEY, JSON.stringify({ ...loadOptions(), [name]: value }));
       };
       s = new RecitationSession(
-        { getToken, getListenToken, mushaf, switchRiwaya, fromHafs, pastSessions: () => pastSessionsText(loadHistory().filter((p) => p.at !== startedAt.current)), tafsir, library, nextExamQuestion, resume, record, mode: MODE, options: loadOptions(), setOption },
+        { getToken, getListenToken, mushaf, switchRiwaya, fromHafs, pastSessions: () => pastSessionsText(loadHistory().filter((p) => p.at !== startedAt.current)), tafsir, library, nextExamQuestion, resume, record, mode: modeRef.current, options: loadOptions(), setOption },
         {
           onState: (st, detail) => {
             if (session.current !== s) return; // replaced by a newer start(), or already stopped
@@ -527,6 +588,7 @@ export const App: React.FC = () => {
           onSpeaking: setSpeaking,
           onLevel: (lvl) => orb.current?.style.setProperty('--level', String(Math.min(1, lvl * 12))),
           onLink: setLink,
+          onVerdict,
           onHeard: () => setHeard((n) => n + 1),
           onPosition: setPosition,
           onCard: setCard,
@@ -534,9 +596,14 @@ export const App: React.FC = () => {
             setPraying(on);
             setVeil(true);
           },
-          onMushafAudio: MUSHAF ? onMushafAudio : setMushaf,
+          onMushafAudio,
           onEvent,
-          ...(MUSHAF && { onWords, onMiss, onPlace: follow, onShow, onPlayWord: (w: WordAt | null) => setPlayWord(w && keyOf(w)) }),
+          // the page (mushaf mode) is kept in both modes, so that a switch to it shows what was recited
+          onWords,
+          onMiss,
+          onPlace: follow,
+          onShow,
+          onPlayWord: (w: WordAt | null) => setPlayWord(w && keyOf(w)),
           onReciting: (w) => {
             where.current = [...where.current.filter((x) => x.s !== w.s), w];
           },
@@ -544,7 +611,7 @@ export const App: React.FC = () => {
       );
       session.current?.stop(); // two quick taps: only the newest session lives
       session.current = s;
-      const first = MUSHAF && !resume && layout ? firstAyahOn(layout, page) : undefined;
+      const first = mushafMode && !resume && layout ? firstAyahOn(layout, page) : undefined;
       if (first) s.openAt(first, page);
       await s.start();
     } catch (err) {
@@ -575,7 +642,7 @@ export const App: React.FC = () => {
 
   /** Saves the session so far under its start time: each save replaces the one before, on this phone and the server. */
   function save(run: Run, rows: Line[], final = false) {
-    const kept = rows.filter((l) => l.text.trim()).map(({ who, text, m }) => (m ? { who, text, m } : { who, text }));
+    const kept = rows.filter((l) => l.text.trim()).map(({ who, text, m, words }) => ({ who, text, ...(m && { m }), ...(words && { words }) }));
     if (!run.at || !kept.length) return;
     const sig = `${run.at}|${kept.length}|${kept[kept.length - 1].text.length}|${run.events.length}|${run.where.length}|${run.riwaya}`;
     if (sig === savedSig.current && !final) return; // the last save is sent anyway: one before it may yet fail
@@ -594,7 +661,7 @@ export const App: React.FC = () => {
     const failed = () => {
       if (savedSig.current === sig) savedSig.current = ''; // try again at the next save
     };
-    gzipped(JSON.stringify({ ...session, ua: navigator.userAgent, ...(MODE && { mode: MODE }) }))
+    gzipped(JSON.stringify({ ...session, ua: navigator.userAgent, ...(modeRef.current && { mode: modeRef.current }) }))
       .then(({ body, type }) =>
         fetch('/api/sessions', {
           method: 'POST',
@@ -619,9 +686,9 @@ export const App: React.FC = () => {
     setState('idle');
     setSpeaking(false);
     setLink('quiet');
+    setVerdict('');
     setPraying(false);
-    if (MUSHAF) onMushafAudio(null);
-    else setMushaf(null);
+    onMushafAudio(null);
     setPlayWord(null);
     setLines((prev) => prev.map((l) => ({ ...l, live: false })));
   }
@@ -630,10 +697,10 @@ export const App: React.FC = () => {
   const status =
     state === 'connecting' ? 'جارٍ الاتصال…'
     : state === 'reconnecting' ? 'لحظة، أستأنف الجلسة…'
-    : state === 'listening' ? (mushaf ? `يُتلى: ${mushaf} — المس للإيقاف` : link === 'stalled' ? 'الشبكة بطيئة، صوتك لم يصل بعد' : speaking ? 'الشيخ يتكلّم' : praying ? 'معك في صلاتك' : link === 'sending' ? 'صوتك يصلني' : 'أستمع إليك')
+    : state === 'listening' ? (mushaf ? `يُتلى: ${mushaf} — المس للإيقاف` : link === 'stalled' ? 'الشبكة بطيئة، صوتك لم يصل بعد' : speaking ? 'الشيخ يتكلّم' : praying ? 'معك في صلاتك' : link === 'unheard' ? 'لا تصلني كلماتك: قرّب الهاتف أو ارفع صوتك' : verdict === 'doubt' ? 'كلمة لم أتابعها في المصحف' : link === 'sending' ? 'صوتك يصلني' : 'أستمع إليك')
     : 'اضغط وتكلّم';
 
-  if (MUSHAF) {
+  if (mushafMode) {
     const marks: MushafMarks = { on: written, fresh, missed, miss, play: playWord };
     return (
       <MushafScreen
@@ -658,6 +725,8 @@ export const App: React.FC = () => {
         orbRef={orb}
         onOrb={mushaf ? () => session.current?.stopMushaf() : active ? stop : () => start()}
         orbLabel={mushaf ? 'إيقاف التلاوة' : active ? 'إنهاء الجلسة' : 'ابدأ'}
+        verdict={state === 'listening' ? verdict : ''}
+        onTalk={() => switchScreen(false, 'button')}
         card={card}
         onCard={() => setCard(null)}
         teacher={teacherNow}
@@ -687,23 +756,28 @@ export const App: React.FC = () => {
     <div className="app">
       <header className="top">
         <h1 className="brand">المُسَمِّع</h1>
-        <button
-          className="riwaya"
-          onClick={() => {
-            session.current?.hold(true);
-            setShowRiwayat(true);
-          }}
-          aria-label={`الرواية: ${r.name}، اضغط للتغيير`}
-        >
-          <span className="ink" aria-hidden="true" />
-          <span className="riwaya-name">{r.short}</span>
-        </button>
+        <span className="top-tools">
+          <button className="mode-btn" onClick={() => switchScreen(true, 'button')} aria-label="وضع المصحف: صفحة المصحف بدل الكلام" title="المصحف">
+            <BookOpen size={20} />
+          </button>
+          <button
+            className="riwaya"
+            onClick={() => {
+              session.current?.hold(true);
+              setShowRiwayat(true);
+            }}
+            aria-label={`الرواية: ${r.name}، اضغط للتغيير`}
+          >
+            <span className="ink" aria-hidden="true" />
+            <span className="riwaya-name">{r.short}</span>
+          </button>
+        </span>
       </header>
 
       <main className={`stage ${lines.length || card ? 'has-content' : ''}`}>
         <button
           ref={orb}
-          className={`orb ${active ? 'on' : ''} ${speaking || mushaf ? 'speaking' : ''} ${state === 'connecting' || state === 'reconnecting' ? 'busy' : ''} ${state === 'listening' && link !== 'quiet' ? link : ''}`}
+          className={`orb ${active ? 'on' : ''} ${speaking || mushaf ? 'speaking' : ''} ${state === 'connecting' || state === 'reconnecting' ? 'busy' : ''} ${state === 'listening' && verdict ? verdict : ''} ${state === 'listening' && link !== 'quiet' ? link : ''}`}
           onClick={mushaf ? () => session.current?.stopMushaf() : active ? stop : () => start()}
           aria-label={mushaf ? 'إيقاف التلاوة' : active ? 'إنهاء الجلسة' : 'ابدأ'}
         >
@@ -733,7 +807,13 @@ export const App: React.FC = () => {
           <div className="captions" ref={captions} aria-live="polite">
             {shownLines(lines).slice(-SHOWN_LINES).map((l) => (
               <p key={l.id} className={`line ${l.who} ${l.live ? 'live' : ''} ${!l.parts && l.m ? 'mushaf' : ''} ${l.who === 'teacher' && isRedo(l.text) ? 'redo' : ''}`}>
-                {l.parts ? l.parts.map((p) => <span key={p.id} className={p.m || p.live ? 'bright' : ''}>{(p.m ?? p.text).trim()} </span>) : (l.m ?? l.text)}
+                {l.parts
+                  ? l.parts.map((p) =>
+                      p.words
+                        ? p.words.map((w, i) => <span key={`${p.id}-${i}`} className={w.ok ? 'bright' : 'dim'}>{w.t} </span>)
+                        : <span key={p.id} className={p.m || p.live ? 'bright' : ''}>{(p.m ?? p.text).trim()} </span>,
+                    )
+                  : (l.m ?? l.text)}
               </p>
             ))}
           </div>
@@ -748,6 +828,7 @@ export const App: React.FC = () => {
               )}
               <p>قل ما ستقرأ ثم اقرأ، واسأل شيخك عن الخطأ أو المعنى أو القراءات، أو قل «اختبرني».</p>
               <p className="faint">وللصلاة: اضغط ثم كبّر واقرأ؛ يعرف شيخك أنك تصلّي ويفتح عليك إذا نسيت. اترك الشاشة مفتوحة، فهي تُظلم وحدها.</p>
+              <p className="faint">وصفحة المصحف بدل هذه الشاشة: قل «افتح المصحف» أو اضغط زرّ المصحف أعلاه.</p>
               {history.length > 0 && (
                 <button className="link" onClick={() => setShowHistory(true)}>الجلسات السابقة ({history.length})</button>
               )}

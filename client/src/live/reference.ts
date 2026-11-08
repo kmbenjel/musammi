@@ -444,13 +444,27 @@ export class PositionTracker {
    *  from where he slipped) to the next waqf mark or the end of the ayah (at most `max` words), so the teacher says
    *  exactly what is needed. */
   nextPhrase(max = 6): string {
-    const out: string[] = [];
-    for (let k = this.fathAt(); k < this.words.length && out.length < max; k++) {
-      const { t, w, idx } = this.words[k];
-      out.push((t ?? w).replace(/[\u06D6-\u06DB]/g, ''));
-      if (/[\u06D6-\u06DB]/.test(t ?? '') || this.words[k + 1]?.idx !== idx) break;
+    const k0 = this.fathAt();
+    const n = this.fathRun(k0, max);
+    return this.words
+      .slice(k0, k0 + n)
+      .map(({ t, w }) => (t ?? w).replace(/[\u06D6-\u06DB]/g, ''))
+      .join(' ');
+  }
+
+  /** How many words (from index k0) a fath covers: up to the next waqf mark or the ayah end when that is within
+   *  FATH_REACH words (user 2026-11-06: \u00ABto the next waqf mark\u00BB); else `max` words, never ending on a word whose last
+   *  letter carries the madd sign: that madd is long because of the next word's hamza, and stopping on it cuts the
+   *  madd in the recording and the phrase in the middle (user 2026-11-08 on \u00AB\u0641\u064E\u0644\u064E\u0645\u064E\u0651\u0622\u00BB in 2:16). */
+  private fathRun(k0: number, max: number): number {
+    const FATH_REACH = 10;
+    for (let k = k0, n = 1; k < this.words.length && n <= FATH_REACH; k++, n++) {
+      const { t, idx } = this.words[k];
+      if (/[\u06D6-\u06DB]/.test(t ?? '') || this.words[k + 1]?.idx !== idx) return n;
     }
-    return out.join(' ');
+    let n = Math.min(max, this.words.length - k0);
+    while (n > 1 && /[\u0622\u0653][\u064B-\u0652\u06E1\u0670]*$/.test(this.words[k0 + n - 1].t ?? '')) n--;
+    return Math.max(1, n);
   }
 
   /** Where a fath starts and how many printed words it covers (the words of nextPhrase): the recorded fath (fath.ts)
@@ -459,13 +473,8 @@ export class PositionTracker {
     const k0 = this.fathAt();
     const w0 = this.words[k0];
     if (!w0) return undefined;
-    let count = 1;
-    for (let k = k0, n = 0; k < this.words.length && n < max; k++, n++) {
-      const { t, idx, pk } = this.words[k];
-      count = pk - w0.pk + 1;
-      if (/[\u06D6-\u06DB]/.test(t ?? '') || this.words[k + 1]?.idx !== idx) break;
-    }
-    return { ayah: this.ayat[w0.idx], word: w0.pk, count };
+    const last = this.words[k0 + this.fathRun(k0, max) - 1];
+    return { ayah: this.ayat[w0.idx], word: w0.pk, count: last.pk - w0.pk + 1 };
   }
 
   /** The mushaf's own words from index `from` to `to` (exclusive), as printed in this riwaya, with the number after
@@ -486,6 +495,12 @@ export class PositionTracker {
   }
 
   /** Word index k as the mushaf prints it: the ayah's id and its printed word (0-based). */
+  /** The mushaf's word k as printed, and the ayah's number when it is the ayah's last word (as printed() writes them). */
+  wordAt(k: number): { text: string; num?: string } | undefined {
+    const x = this.words[k];
+    if (!x) return undefined;
+    return { text: x.t ?? x.w, num: this.words[k + 1]?.idx !== x.idx ? this.ayat[x.idx].a.toLocaleString('ar-EG') : undefined };
+  }
   printedAt(k: number): { id: number; k: number } | undefined {
     const w = this.words[k];
     return w && { id: this.ayat[w.idx].id, k: w.pk };

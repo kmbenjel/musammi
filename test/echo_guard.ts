@@ -61,6 +61,12 @@ r = reply(['هل قرأت هذه الآية بوجه صحيح يا شيخ']);
 check('his question after the answer: played', r.played && !r.muted, r);
 r = reply(['على الرحب والسعه، بارك الله فيك.'], { after: 8 });
 check('long after the audio ended, it cannot be echo: played', r.played && !r.muted, r);
+// 2026-11-07 15:52: a 5 s answer came back as his line 11 s after it ended, and the model answered its own words
+const LONG = 'لقد قرأت الآية بشكل صحيح، لعلي أخطأت في السمع. تابع بارك الله فيك.';
+r = reply(['لقد قرأت الآية بشكل صحيح، لعلي أخطأت في السمع، تابع بارك الله فيك.'], { said: LONG, after: 11, answer: 'نعم، تفضل أنا معك.' });
+check('a long answer back 11 s after it ended (11-07 15:52): not played', !r.played && r.muted, r);
+r = reply(['لقد قرأت الآية بشكل صحيح، لعلي أخطأت في السمع، تابع بارك الله فيك.'], { said: LONG, after: 20, answer: 'نعم، تفضل أنا معك.' });
+check('the same 20 s after: played', r.played && !r.muted, r);
 const fath = w.slice(8, 14).join(' ');
 r = reply([fath], { said: fath, answer: 'أعِد.' });
 check('he repeats the fath in the mushaf: recitation, played', r.played && !r.muted, r);

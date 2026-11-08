@@ -1,0 +1,27 @@
+# The mushaf mode's first host: it now only sends to https://musammi.benjelloun.dev/mushaf (worker/index.ts), so it
+# needs no secrets. A file of its own, not an [env] in wrangler.toml, so neither deploy has to name an environment.
+# Deploy: npx wrangler deploy -c wrangler.mushaf.toml
+name = "tarteel-warsh"
+main = "worker/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+routes = [{ pattern = "tarteel-warsh.benjelloun.dev", custom_domain = true }]
+preview_urls = false
+
+# every request to the Worker first, so pages redirect too instead of being served from the assets
+[assets]
+directory = "client/dist"
+binding = "ASSETS"
+run_worker_first = true
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "d04e77249cf047d0a24fdff0a451b0f4"
+
+[[r2_buckets]]
+binding = "AUDIO"
+bucket_name = "almusammi-audio"
+
+[vars]
+LIVE_MODEL = "gemini-3.8-live"
+LIBRARY_ORIGIN = "https://hifz.benjelloun.dev"

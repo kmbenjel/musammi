@@ -1,7 +1,8 @@
 # Mushaf mode · وضع المصحف
 
 > **Experimental.** A second way to use al-Musammiʿ, being tried with a few people before it is decided whether it
-> stays: **[musammi.benjelloun.dev/mushaf](https://musammi.benjelloun.dev/mushaf)**. It is not affiliated with Tarteel AI
+> stays. In the app, say «افتح المصحف» or tap the book button in the header; or open
+> **[musammi.benjelloun.dev/mushaf](https://musammi.benjelloun.dev/mushaf)**. It is not affiliated with Tarteel AI
 > or any other app.
 
 <p align="center">
@@ -18,7 +19,8 @@
 
 بدل شاشة الكلام، **صفحة المصحف** أمامك: مصحف المدينة (مجمع الملك فهد، ١٤٤١)، رواية ورش عن نافع من طريق الأزرق، بخط ورش الذي في المُسَمِّع، خمسة عشر سطراً مستوية في كل صفحة، وأرقام الآيات بالأرقام العادية (1، 2، 3).
 
-- **أظهِر الكتابة أو أخفِها** بزرّ العين. إذا أخفيتَها كتب التطبيق ما تقرؤه صواباً في موضعه من الصفحة، كلمةً كلمة، وآخر كلمة بالأخضر لحظة. وإذا بدأتَ من وسط الصفحة ظهر ما قبل موضعك منها.
+- **من المُسَمِّع نفسه:** قل «افتح المصحف» (أو «أرني صفحة المصحف») أو اضغط زرّ المصحف أعلى الشاشة، قبل الجلسة أو في أثنائها، فتحلّ الصفحة محلّ شاشة الكلام مفتوحةً على موضعك وعليها ما قرأتَه صواباً. و«ارجع إلى الكلام» (أو «شاشة الكلام» من القائمة) تعيد شاشة الكلام.
+- **أظهِر الكتابة أو أخفِها** بزرّ العين، أو بصوتك: «أخفِ الكتابة». إذا أخفيتَها كتب التطبيق ما تقرؤه صواباً في موضعه من الصفحة، كلمةً كلمة، وآخر كلمة بالأخضر لحظة. وإذا بدأتَ من وسط الصفحة ظهر ما قبل موضعك منها.
 - **«أعِد»** عند الخطأ كما في المُسَمِّع: يمحو التطبيق ما كتبه من ذلك المقطع، ويعلّم موضع الخطأ بالأحمر، ويبقى أثره خفيفاً في الصفحة إلى آخر الجلسة.
 - **الأسطر مستوية بالكشيدة** كما في المطبوع، موزّعة على كلمات السطر بالتساوي.
 - **لا فتح أبداً**، لا عند السكوت ولا عند الطلب: الصفحة بين يديك، أظهِرها بالعين، أو اضغط عليها مطوّلاً فتظهر ما دمتَ ضاغطاً.
@@ -40,17 +42,19 @@ detection, exams, recordings and the stop word «حسبك». What differs:
 |---|---|---|
 | Screen | the conversation: what you recited (as printed, when right) and the teacher's replies | the mushaf page; the teacher's last remark floats over it for 7 s |
 | Riwayat | eight | Warsh only |
-| Fath | after 5 s of silence mid-ayah (3.5 s in prayer), on «افتح», on istiṭʿām in prayer | **never**; on «افتح» the teacher whispers «أظهِر الصفحة» |
-| In prayer | «أعِد» and the fath | «أعِد» only (any other reply is muted by the app, not only by the prompt) |
+| Fath | on «افتح» (in the reciter's recorded voice); in prayer also after 3.5 s of silence mid-ayah and on istiṭʿām | **never**; on «افتح» the teacher whispers «أظهِر الصفحة» |
+| In prayer | «سبحان الله» on a mistake, and the fath | «أعِد» only (any other reply is muted by the app, not only by the prompt) |
 | Tafsir | Ibn Juzay, and the owner's Shamela tafsirs | none (the tool is not declared) |
 | «أرني الآية» | a card with the ayah | the page of that ayah, shown |
 | A recording | plays | plays, turns to its page, shows it, follows al-Kushi word by word |
 
-It is the same app at the path `/mushaf`: the same origin, so a Gemini key or private link already saved in
-al-Musammiʿ serves it too, with nothing to enter again, and the same Worker with its secrets. Installed from there
-(«تثبيت التطبيق»), it is an app of its own that opens on `/mushaf`. Everything mode-specific is behind
-`mode: 'mushaf'` in the session and the prompt, so al-Musammiʿ itself behaves exactly as before. Its first address,
-tarteel-warsh.benjelloun.dev, sends there (302).
+It is the same app, in a second mode: at the path `/mushaf` from the start, or switched to inside al-Musammiʿ by
+voice («افتح المصحف», the `set_option` tool with `screen=mushaf`) or the book button in the header, and back with
+«ارجع إلى الكلام» or the menu's «شاشة الكلام». The same origin, so a Gemini key or private link already saved in
+al-Musammiʿ serves it too, with nothing to enter again, and the same Worker with its secrets. The address follows
+the mode, so a reload keeps it, and an app installed from `/mushaf` («تثبيت التطبيق») opens on the page. Everything
+mode-specific is behind `mode: 'mushaf'` in the session and the prompt, so al-Musammiʿ itself behaves exactly as
+before. Its first address, tarteel-warsh.benjelloun.dev, sends there (302).
 
 ## How it works
 
@@ -134,6 +138,18 @@ fath rules replaced by "never give a fath", no tafsir, no other riwaya, and its 
 drops the `tafsir` and `set_riwaya` tools. The mode travels in the token request (`/api/live/token`, `mode`), or into
 the token the browser mints with the reciter's own key.
 
+### 5. Entering and leaving mid-session
+
+The mode is app state (`mushafMode` in [`App.tsx`](../client/src/App.tsx)), set from the path at load and switched by
+`set_option screen` (the teacher's tool, on «افتح المصحف» / «ارجع إلى الكلام») or the two buttons. The session keeps
+running: `RecitationSession.setMode()` changes `deps.mode`, so the session's own rules hold at once (no fath clip,
+in salat nothing but «أعِد» on the page), tells the teacher in a note what holds from now on, and makes the handover
+due at the next quiet moment (the connection counts as 450 s old), which resumes the same session on a new
+connection with the mode's prompt and tools. The page's state (the words written, where «أعِد» fell) is kept by the
+app in both modes, so switching to the page shows what was recited; the page opens where the reciter is. The page
+is Warsh only, so another riwaya is switched to Warsh first. «افتح المصحف» is a request for the page, not a fath:
+the app's fath request excludes it (`SCREEN_ASKED`), and the prompt says so.
+
 ## Who can use it
 
 - **With your own Gemini key**: the key saved in al-Musammiʿ on this phone serves here too; otherwise «أدخل مفتاحك».
@@ -155,8 +171,8 @@ The keys are kept in `.guests.json` (not in git) and sent to the Worker as the s
 ## Deploy
 
 Nothing of its own: it ships with al-Musammiʿ (`npx wrangler deploy`), with its sessions in the same store, marked
-`mode: "mushaf"`. The old host's redirect is `[env.mushaf]` in [`wrangler.toml`](../wrangler.toml)
-(`npx wrangler deploy --env mushaf`, no secrets).
+`mode: "mushaf"`. The old host's redirect is its own Worker, [`wrangler.mushaf.toml`](../wrangler.mushaf.toml)
+(`npx wrangler deploy -c wrangler.mushaf.toml`, no secrets).
 
 ## Tests
 
@@ -164,6 +180,9 @@ Nothing of its own: it ships with al-Musammiʿ (`npx wrangler deploy`), with its
 
 - every printed word of all 6,214 ayat is reached when the ayah is recited as printed;
 - the layout places every printed word once, in order;
+- entering and leaving the mode ([`test/screen_switch.ts`](../test/screen_switch.ts)): `set_option screen` and the buttons
+  switch the mode and tell the teacher, «افتح المصحف» asks no fath while «افتح» alone does and never on the page,
+  another riwaya is switched to Warsh first, `show_ayah` is a card on the conversation and the page on the mushaf;
 - through the session: a stretch writes its words and the page follows, «أعِد» takes them back and marks the place,
   a dropped word is written once the stretch passes, and so is one lost between two stretches; «صٓ» is written after
   the stretch that follows it, «افتح» asks

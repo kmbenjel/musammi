@@ -15,3 +15,4 @@ server.log
 
 # guest keys of the mushaf mode (scripts/guest_keys.mjs)
 /.guests.json
+__pycache__/

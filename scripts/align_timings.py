@@ -138,15 +138,29 @@ def pause_between(db: np.ndarray, lo_ms: float, hi_ms: float, near_ms: float, th
 
 
 def reference_timings(read: int, surah: int) -> dict[int, tuple[int, int]]:
-    """mp3quran's ayah → (start ms, end ms) for this recording."""
+    """mp3quran's ayah → (start ms, end ms) for this recording.
+    The body may start with PHP warnings (read 31 surah 33): the JSON is parsed from its first '['."""
     with urllib.request.urlopen(f'{TIMING}?surah={surah}&read={read}', timeout=60) as r:
-        return {x['ayah']: (x['start_time'], x['end_time']) for x in json.load(r) if x['ayah'] >= 1}
+        body = r.read()
+    k = body.find(b'[')
+    if k < 0:
+        raise ValueError(f'no JSON in the timing reply for surah {surah} read {read}: {body[:80]!r}')
+    return {x['ayah']: (x['start_time'], x['end_time']) for x in json.loads(body[k:]) if x['ayah'] >= 1}
 
 
 def groups_of(ayat: list[dict], ref: dict[int, tuple[int, int]] | None, total_ms: float) -> list[tuple[int, int, float, float]]:
     """(first ayah index, last + 1, from ms, to ms) of each piece aligned on its own."""
-    if not ref or total_ms <= GROUP_S * 1000 or any(a['a'] not in ref for a in ayat):
+    if not ref or total_ms <= GROUP_S * 1000:
         return [(0, len(ayat), 0, total_ms)]
+    missing = [a['a'] for a in ayat if a['a'] not in ref]
+    if missing:  # mp3quran lacks an ayah (read 31 and 112, surah 9: no 129): it shares its neighbour's range, so the
+        ref = dict(ref)  # surah is still cut into pieces instead of one piece the model cannot hold (a 36 min surah segfaults)
+        print(f'reference timings miss ayat {missing}: joined to a neighbour', flush=True)
+        for a in missing:
+            near = ref.get(a - 1) or ref.get(a + 1) or next((ref[b] for b in sorted(ref) if b > a), None)
+            if near is None:
+                return [(0, len(ayat), 0, total_ms)]
+            ref[a] = near
     out, i0 = [], 0
     for i in range(1, len(ayat) + 1):
         if i == len(ayat) or ref[ayat[i]['a']][1] - ref[ayat[i0]['a']][0] > GROUP_S * 1000:  # ayah i would overflow
@@ -198,9 +212,18 @@ def align_surah(ayat: list[dict], wav: np.ndarray, words: bool = False, ref: dic
     thr = float(np.percentile(db, 10)) + 8
     ms = lambda f: f * frame_s * 1000
     bounds, pauses = [], []
+    spans_of = lambda i: [word_span[k] for k in sorted(k for k in word_span if k[0] == i)]  # the ayah's words in order
     for i in range(len(ayat)):
         prev_end = ms(last[i - 1]) if i else ms(first[i]) - 2500  # before ayah 1: the basmala / isti'adha
         b, p = pause_between(db, min(prev_end, ms(first[i])) - 300, ms(first[i]) + 400, ms(first[i]), thr)
+        # The boundary stays between the words it separates, since the first word is snapped to it: after the previous
+        # ayah's last word starts (aligned late, after a long pause before it: Minshawi 2:259, Doori 53:27) and before
+        # this ayah's second word (a soft first word like «ما» read as the pause: Shuraim 101:2, 35:21, 96:12).
+        if i:
+            b = max(b, ms(spans_of(i - 1)[-1][0]) + 20)
+        sp = spans_of(i)
+        if len(sp) > 1:
+            b = min(b, ms(sp[1][0]) - 20)
         bounds.append(b)
         pauses.append(p)
     out = []

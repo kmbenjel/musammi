@@ -31,7 +31,7 @@ Warsh by default, and seven other riwayat of the King Fahd Complex mushafs.**
 
 الشرح المفصّل للمبتدئين: **[musammi.benjelloun.dev/guide](https://musammi.benjelloun.dev/guide)**.
 
-**وضع المصحف (تجريبي):** صفحة مصحف المدينة برواية ورش أمامك بدل شاشة الكلام، تُظهر الكتابة أو تُخفيها، فإذا أخفيتَها كُتب ما تقرؤه صواباً في موضعه، بلا فتح أبداً: **[musammi.benjelloun.dev/mushaf](https://musammi.benjelloun.dev/mushaf)** · [الشرح](docs/mushaf-mode.md).
+**وضع المصحف (تجريبي):** صفحة مصحف المدينة برواية ورش أمامك بدل شاشة الكلام، تُظهر الكتابة أو تُخفيها، فإذا أخفيتَها كُتب ما تقرؤه صواباً في موضعه، بلا فتح أبداً. قل في التطبيق «افتح المصحف» أو اضغط زرّ المصحف أعلى الشاشة، ولو في أثناء الجلسة، و«ارجع إلى الكلام» يعيدك؛ أو افتحه مباشرة: **[musammi.benjelloun.dev/mushaf](https://musammi.benjelloun.dev/mushaf)** · [الشرح](docs/mushaf-mode.md).
 
 **تنبيه:** في الخطة المجانية قد يطّلع مراجعون من Google على ما يصلها (صوت تلاوتك ونصّها) وتستعمله في تحسين منتجاتها، ويشترط Google أن يكون صاحب المفتاح قد بلغ 18 سنة.
 
@@ -56,12 +56,16 @@ Warsh by default, and seven other riwayat of the King Fahd Complex mushafs.**
 | | |
 |---|---|
 | **Listens, mostly in silence** | Correct recitation gets no reply at all: no «أحسنت» at every ayah end. A mistake gets one soft word, «أعِد», played over your recitation so you can correct on the spot. |
-| **Fath when you stall** | Stop mid-ayah for 5 s (3.5 s in prayer) or say «افتح», and the teacher whispers the next words. The app supplies the exact printed words up to the next waqf mark or the ayah's end, so the teacher never prompts from memory. |
+| **Fath when you ask** | Say «افتح» and the app plays the next words in the riwaya's default reciter's own recording, cut by its word timings, up to the next waqf mark or the ayah's end. Where no word timings exist, the teacher whispers the exact printed words the app supplies, so it never prompts from memory. Outside prayer the fath comes only when asked. |
 | **Eight riwayat** | Warsh (default), Qalun, Hafs, Shuʿba, al-Duri, al-Susi, al-Bazzi and Qunbul: each with its own KFGQPC text, font, ayah count and list of differences from Hafs. Pick one from the badge, or ask for it by voice (the teacher confirms first). |
-| **Prayer mode** | Say «الله أكبر» and the app knows you are praying: the screen goes dark but stays on, the teacher says only «أعِد» on a mistake and gives the fath only when you stall. «السلام عليكم» ends it. The app finds your place in the whole mushaf by itself. |
+| **Prayer mode** | Say «الله أكبر» and the app knows you are praying: the screen goes dark but stays on, a mistake gets «سبحان الله» instead of «أعِد», and the fath comes by itself when you stop mid-ayah for 3.5 s or repeat where you stopped. «السلام عليكم» ends it. The app finds your place in the whole mushaf by itself. |
 | **Exams** | «اختبرني»: questions drawn from the mushaf of your riwaya. Continue from an ayah's start, recite the previous ayah, start of a juz, mutashabihat, and "where is this?". An answer recited from a different place is caught and named. |
 | **Meanings and qiraʾat** | Ask what an ayah means and the teacher answers from Ibn Juzay's tafsir. In the owner's build, other tafsirs and the qiraʾat books (البدور الزاهرة، النشر، الإتقان) are read live from the owner's Shamela library. |
 | **Recorded mushaf** | «أسمعني…» plays murattal recordings from mp3quran.net, cut to the exact ayat when timings exist (e.g. al-Kushi and al-Husary for Warsh, al-Shuraim and al-Minshawi for Hafs). Al-Kushi can also start from a phrase, with word timings for all 114 surahs. «حسبك» stops the recording. |
+| **Written from the mushaf** | What you recite is written in the mushaf's own words as the app follows them, never as the transcription heard them; a word it could not follow stays dim. The orb says the same at a glance: ink while every word is followed, grey on a doubt, a red flash on «أعِد». |
+| **Hear yourself** | Dispute a correction, or say «شغّل ما قلت» / «ماذا سمعت؟», and the phone plays back what it heard of the stretch the teacher judged — from its own memory of the last two minutes, sent nowhere. |
+| **Review the session** | «راجع الجلسة» or «ما أخطائي حتى الآن؟»: what you have read, every «أعِد» with the words heard and the mushaf's, and where you are — from the app's record, so a reconnect loses nothing. |
+| **The mushaf page** | Say «افتح المصحف» or tap the book in the header, even mid-session: the Madina Warsh page replaces the conversation, open where you are, with what you have recited already written. Hide the writing and the page writes each word you recite right in its place; never a fath there. «ارجع إلى الكلام» or the menu brings the conversation back. See below. |
 | **Memory** | Past sessions stay on the phone, and the teacher can go over your earlier mistakes. |
 
 ### Mushaf mode (experimental)
@@ -77,8 +81,12 @@ The mushaf page instead of the conversation, Warsh only: the Madina mushaf (King
 word you recite right in its place; «أعِد» takes the stretch back. There is never a fath, since the page can be
 shown at any time (the eye, or press and hold). The page follows you: turn to one and recite from it, recite from
 elsewhere and it moves there, ask for al-Kushi and it turns to the page and follows him word by word. Prayer mode,
-exams and recordings work as above; there is no tafsir. Try it at
-**[musammi.benjelloun.dev/mushaf](https://musammi.benjelloun.dev/mushaf)**: a key already saved in the app works there too.
+exams and recordings work as above; there is no tafsir. Reach it from the app by voice («افتح المصحف», also «أرني صفحة
+المصحف») or the book button in the header, before or during a session: the session goes on, the page opens where you
+are with what you have recited written, and the teacher follows the page's rules from that moment; «ارجع إلى الكلام»
+or the menu's «شاشة الكلام» brings the conversation back. Or open it directly at
+**[musammi.benjelloun.dev/mushaf](https://musammi.benjelloun.dev/mushaf)** (an installed app from there opens on the
+page): a key already saved in the app works there too.
 How the pages are laid out and how the words are written: **[docs/mushaf-mode.md](docs/mushaf-mode.md)**.
 
 ## How it works
@@ -159,7 +167,8 @@ sequenceDiagram
     end
     A->>G: activityStart + the held audio (no recitation lost)
 
-    opt stall mid-ayah (5 s, or 3.5 s in prayer), or «افتح»
+    opt «افتح», or in prayer a 3.5 s stall mid-ayah
+        Note over A: the next words from the reciter's recording<br/>(word timings), else:
         A->>G: note with the exact next printed words
         G-->>A: whispered fath
     end

@@ -10,7 +10,7 @@
 // - Guests: GUEST_KEYS (secret, comma-separated, each «g-<name>-<random>») open the app on the owner's Gemini key, for
 //   people he lets try it. Their sessions are saved with `guest: <name>`; they cannot read sessions or keep audio.
 // - The mushaf mode is the app at /mushaf (same origin: the same keys). Its first host, tarteel-warsh.benjelloun.dev
-//   (wrangler.toml [env.mushaf]), only sends there.
+//   (wrangler.mushaf.toml), only sends there.
 import { mintListenToken, mintToken } from '../client/src/live/token';
 
 interface Env {

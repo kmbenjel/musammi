@@ -2,7 +2,7 @@
 // the writing, the voice button, and the index. App.tsx runs the session; this only draws.
 import React, { useEffect, useState } from 'react';
 import { BookOpen, Eye, EyeOff, Menu } from 'lucide-react';
-import type { ShownCard, VoiceLink } from '../live/session';
+import type { ShownCard, Verdict, VoiceLink } from '../live/session';
 import type { CompactAyah, SurahMeta } from '../services/quranData';
 import { MushafView, type MushafMarks } from './MushafView';
 import type { MushafLayout } from './layout';
@@ -31,6 +31,8 @@ interface Props {
   orbRef: React.RefObject<HTMLButtonElement | null>;
   onOrb: () => void;
   orbLabel: string;
+  verdict: Verdict | ''; // the tracker's word on the last stretch: the orb's colour, as in the conversation
+  onTalk: () => void; // back to the conversation screen
   card: ShownCard | null;
   onCard: () => void;
   teacher: { id: number; text: string } | null;
@@ -98,7 +100,7 @@ export const MushafScreen: React.FC<Props> = (p) => {
         </button>
         <button
           ref={p.orbRef}
-          className={`orb morb ${p.active ? 'on' : ''} ${p.speaking ? 'speaking' : ''} ${p.busy ? 'busy' : ''} ${p.link !== 'quiet' ? p.link : ''}`}
+          className={`orb morb ${p.active ? 'on' : ''} ${p.speaking ? 'speaking' : ''} ${p.busy ? 'busy' : ''} ${p.verdict} ${p.link !== 'quiet' ? p.link : ''}`}
           onClick={p.onOrb}
           aria-label={p.orbLabel}
         >
@@ -131,10 +133,11 @@ export const MushafScreen: React.FC<Props> = (p) => {
           <div className="sheet-body mmenu-body">
             <p>اضغط الدائرة واقرأ من الصفحة التي أمامك: يسكت شيخك ما دمتَ مصيباً، ويقول «أعِد» عند الخطأ. لا فتح هنا: أظهِر الصفحة بالعين، أو اضغط عليها مطوّلاً.</p>
             <p className="faint">قلّب إلى صفحة لتقرأ منها، أو اقرأ من موضع آخر فتنتقل إليه. «أسمعني الآية» يتلوها الكوشي وتُعلَّم كلماته. وللصلاة: كبّر واقرأ.</p>
+            <p className="faint">وبصوتك: «أخفِ الكتابة»، و«شغّل ما قلت» إن اعترضتَ على «أعِد»، و«راجع الجلسة»، و«ارجع إلى الكلام» لشاشة المُسَمِّع.</p>
             {p.history.length > 0 && <button className="link" onClick={() => setSheet('history')}>الجلسات السابقة ({p.history.length})</button>}
             <button className="link" onClick={() => { setSheet(null); p.onKey(); }}>{p.geminiKey ? 'مفتاح Gemini' : 'أدخل مفتاح Gemini'}</button>
             <a className="link" href="/guide">دليل البدء</a>
-            <a className="link" href="/">المُسَمِّع (الروايات الثماني)</a>
+            <button className="link" onClick={() => { setSheet(null); p.onTalk(); }}>شاشة الكلام (المُسَمِّع بروايته الثماني)</button>
           </div>
         </div>
       )}

@@ -14,6 +14,8 @@
   --ink: #d9b45f; /* riwaya ink; Warsh saffron by default */
   --ink-soft: color-mix(in srgb, var(--ink) 18%, transparent);
   --ink-glow: color-mix(in srgb, var(--ink) 35%, transparent);
+  --doubt: #8f9ac2; /* a word not followed: a cool grey-blue, unlike any riwaya's ink */
+  --miss: #e0675f; /* the «أعد» (the mushaf page's miss colour) */
   --ui: 'Tajawal', 'Cairo', 'Noto Sans Arabic', system-ui, sans-serif;
   --kufi: 'Reem Kufi', 'Tajawal', sans-serif;
   --quran: 'Mushaf-warsh', 'Amiri', serif;
@@ -102,6 +104,28 @@ button {
 .riwaya:disabled {
   cursor: default;
   opacity: 0.9;
+}
+
+/* the header's tools: the mushaf button (the page instead of the conversation; by voice «افتح المصحف») and the badge */
+.top-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mode-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--rule);
+  color: var(--parchment-dim);
+}
+
+.mode-btn:active {
+  background: var(--night-2);
 }
 
 .ink {
@@ -231,6 +255,43 @@ button {
   border-style: dashed;
 }
 
+/* the tracker's word on the last stretch: a doubt cools the ring and its ripple, the «أعد» flashes it */
+.orb.doubt .halo,
+.orb.doubt .ripple {
+  border-color: var(--doubt);
+}
+
+.orb.doubt .dot {
+  box-shadow: 0 0 24px color-mix(in srgb, var(--doubt) 40%, transparent);
+}
+
+.orb.redo .halo {
+  border-color: var(--miss);
+  border-width: 2px;
+  animation: miss-flash 1.5s ease-out;
+}
+
+.orb.redo .dot {
+  background: var(--miss);
+  box-shadow: 0 0 34px color-mix(in srgb, var(--miss) 45%, transparent);
+}
+
+@keyframes miss-flash {
+  from {
+    transform: scale(1.08);
+  }
+  to {
+    transform: scale(0.86);
+  }
+}
+
+/* stretches go out and no word comes back: the ring is dotted */
+.orb.unheard .halo {
+  border-color: var(--ink);
+  border-style: dotted;
+  border-width: 2px;
+}
+
 /* his words came back: one ring goes out from the drop */
 .ripple {
   width: 100%;
@@ -303,6 +364,12 @@ button {
 .line.you .bright,
 .line.you.mushaf {
   color: var(--parchment);
+}
+
+/* a word of the mushaf his stretch reached but was not followed at: a doubt, not a verdict */
+.line.you .dim {
+  color: var(--doubt);
+  opacity: 0.75;
 }
 
 .line.you.live::after {
