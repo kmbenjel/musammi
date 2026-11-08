@@ -26,9 +26,10 @@ NUM = re.compile(r'[٠-٩\d۝۞۩]+')
 def normalize_arabic(text):
     """Letters only, for matching speech transcripts (same rules as client/src/utils/arabic.ts)."""
     text = re.sub(r'[٠-٩\d]+', '', text.strip())
-    text = re.sub(r'[ۖ-ۛ۞\xa0]', ' ', text)
+    text = re.sub(r'[ۖ-ۛ۞۩\xa0]', ' ', text)
     text = re.sub(r'ٰ', 'ا', text)
-    text = re.sub(r'[ؐ-ًؚ-ٟۜ۟-۪ۨ-ۭ‏‎ـ]', '', text)
+    text = re.sub(r'[ؐ-ًؚ-ٟۜ۟-۪ۨ-ۭ‏‎‌‍ـ]', '', text)
+    text = text.replace('ٮ', 'ئ')
     text = re.sub(r'[إأآٱ]', 'ا', text)
     text = re.sub(r'[ىيۦے]', 'ي', text)
     text = re.sub(r'ة', 'ه', text)

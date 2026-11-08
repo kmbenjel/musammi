@@ -157,8 +157,30 @@ export const isNumberWord = (w: string) => NUMBER_WORDS.has(w) || (/^[وفبل]/
  *  («يَجْـَٔرُونَ»: c has «يجرون»; Google writes «يجأرون»). The HANDOFF bug of 2026-11-01: `exact` failed on these words,
  *  so the breath guard could not save a stretch holding one (23:65: 6 of 8). */
 export function spokenForm(printed: string): string | undefined {
-  if (!/[\u0670\u0654]/.test(printed)) return undefined;
-  const v = normalizeTranscript(printed.replace(/\u0670/g, '').replace(/\u0640?([\u064B-\u0652]*)\u0654/g, 'ا$1'));
+  if (!/[\u0670\u0654\u0655\u06D3]|\u0621[\u064E\u06EA]*\u0627/.test(printed)) return undefined;
+  // the 2026-11-08 data audit (~1 % of the words in every riwaya never exact): «الصلوٰة» → «الصلاة», «رءا» → «رأى»,
+  // the KFGQPC hamza mark on its seat («شَيْـًٔا» / «جِئتَ» → «شيئا», «جئت»), «ءال» → «آل»
+  const M = '[\u064B-\u0652\u0656-\u065F\u06D6-\u06ED]';
+  const rank = (m: string) => (/[\u064D\u0650]/.test(m) ? 3 : /[\u064C\u064F]/.test(m) ? 2 : /[\u064B\u064E]/.test(m) ? 1 : 0);
+  const v = normalizeTranscript(
+    printed
+      .replace(new RegExp(`\u0631(${M}*)\u0621(${M}*)\u0627(${M}*)$`), 'رأى$3')
+      .replace(/\u0648\u0670\u0627?[\u06E1\u0652]?/g, 'ا')
+      .replace(/[\u0649\u06D2]\u0670(?=[\u064B-\u0652]*\u0629)/g, 'ا')
+      .replace(/\u0670/g, '')
+      .replace(new RegExp(`\u0640(${M}*)\u0654(${M}*)\u0627`, 'g'), 'آ$1$2')
+      .replace(new RegExp(`(${M}*)\u0640(${M}*)([\u0654\u0655])(${M}*)`, 'g'), (_m, before: string, mid: string, hz: string, after: string) => {
+        const r = Math.max(rank(mid + after), rank(before));
+        return before + (hz === '\u0655' || r === 3 ? 'ئ' : r === 2 ? 'ؤ' : r === 1 ? 'أ' : 'ء') + mid + after;
+      })
+      .replace(new RegExp(`\u0627(${M}*)\u0654`, 'g'), 'أ$1')
+      .replace(new RegExp(`\u0627(${M}*)\u0655`, 'g'), 'إ$1')
+      .replace(new RegExp(`\u0648(${M}*)\u0654`, 'g'), 'ؤ$1')
+      .replace(/\u06D3/g, 'ئ')
+      .replace(/\u064A([\u0652\u06E1])\u0654/g, 'يئ$1') // «شَئْا»: a yaa with sukun, then the hamza («شيئا»)
+      .replace(new RegExp(`[\u064A\u0649\u06D2\u06CC](${M}*)[\u0654\u0655]`, 'g'), 'ئ$1')
+      .replace(/\u0621[\u064E\u06EA]*\u0627/g, 'آ'),
+  );
   return v && !v.includes(' ') ? v : undefined;
 }
 const simWord = (w: string, x: { w: string; h?: string; v?: string }) => Math.max(sim(w, x.w), x.h ? sim(w, x.h) : 0, x.v ? sim(w, x.v) : 0);

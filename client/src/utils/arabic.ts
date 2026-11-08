@@ -19,11 +19,13 @@ export function normalizeArabic(text: string): string {
   // Remove ayah numbers (arabic indic digits or ascii) everywhere
   s = s.replace(/[\u0660-\u0669\d]+/g, '');
   // Remove waqf signs and rub el hizb
-  s = s.replace(/[\u06D6-\u06DB\u06DE\xa0]/g, ' ');
+  s = s.replace(/[\u06D6-\u06DB\u06DE\u06E9\xa0]/g, ' ');
   // Convert dagger alif to regular alif to match spoken phonetic transcription
   s = s.replace(/\u0670/g, 'ا');
   // Remove all diacritics including warsh marks
-  s = s.replace(/[\u0610-\u061A\u064B-\u065F\u06DC\u06DF-\u06E8\u06EA-\u06ED\u200f\u200e\u0640]/g, '');
+  s = s.replace(/[\u0610-\u061A\u064B-\u065F\u06DC\u06DF-\u06E8\u06EA-\u06ED\u200f\u200e\u200c\u200d\u0640]/g, '');
+  // the dotless beh KFGQPC Bazzi/Qumbul use as a hamza seat (6:20 «أَٮ۪نَّكُمُۥ»)
+  s = s.replace(/\u066E/g, 'ئ');
   // Unify alifs
   s = s.replace(/[إأآٱ]/g, 'ا');
   // Unify yaa / alif maqsoora

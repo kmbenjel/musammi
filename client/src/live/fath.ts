@@ -1,15 +1,16 @@
 // The fath in the reciter's own recorded mushaf, never in the model's voice (user, 2026-11-06): the words he needs,
 // cut from the default reciter's recording by its word timings (audio.ts), and played at once.
 //
-// Why byte ranges and not a copy of the clips: cdn.mp3quran.net serves every surah as a constant 128 kbps MPEG-1
-// file (checked 2026-11-06 on al-Kouchi: every frame 128 kbps, 44.1 kHz), with Accept-Ranges and open CORS, so a
-// second of audio is 16 000 bytes after the ID3 tag and a Range request fetches exactly the jumla, ~80 KB for 5 s.
+// Why byte ranges and not a copy of the clips: cdn.mp3quran.net serves every surah as a constant-bitrate file with
+// Accept-Ranges and open CORS, so a second of audio is a fixed number of bytes after the ID3 tag and a Range request
+// fetches exactly the jumla, ~80 KB for 5 s. The bitrate is read from each file's first frame: not all are 128 kbps
+// MPEG-1 (2026-11-08 audit: Husary-Warsh 64 kbps MPEG-2.5, Hudhaifi-Shouba 96 kbps MPEG-2, Jazairi 96 kbps, single
+// 160/192/320 kbps files in Minshawi, Husary-Doori, Kameny), and a fixed 16 000 bytes/s played other words or none.
 // The bytes are decoded with Web Audio (the decoder syncs on the first whole frame; a second of lead covers the
 // frame it drops and the bit reservoir) and played from the sample wanted. To start instantly when he stops, the
 // ayah he is in and the next one are fetched as he advances (prefetch), so a fath is a slice of a buffer in memory.
 import type { Span } from './audio';
 
-const BYTES_PER_S = 16000; // 128 kbps
 const LEAD_S = 1.0;
 const TAIL_S = 0.3;
 const KEEP = 4; // decoded ayat kept (a long ayah is ~3 MB of samples)
@@ -20,21 +21,34 @@ interface Piece {
   buffer: AudioBuffer;
 }
 
+const KBPS = {
+  1: [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320],
+  2: [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],
+};
+const RATES: Record<number, number[]> = { 3: [44100, 48000, 32000], 2: [22050, 24000, 16000], 0: [11025, 12000, 8000] };
+
+/** An MPEG layer III frame header at i (MPEG-1, 2 or 2.5): its bitrate and length in bytes, or null. */
+export function frameAt(b: Uint8Array, i: number): { kbps: number; len: number } | null {
+  if (i + 3 >= b.length || b[i] !== 0xff || (b[i + 1] & 0xe0) !== 0xe0 || ((b[i + 1] >> 1) & 3) !== 1) return null;
+  const v = (b[i + 1] >> 3) & 3, br = b[i + 2] >> 4, sr = (b[i + 2] >> 2) & 3, pad = (b[i + 2] >> 1) & 1;
+  if (v === 1 || br === 0 || br === 15 || sr === 3) return null;
+  const kbps = KBPS[v === 3 ? 1 : 2][br];
+  return { kbps, len: Math.floor(((v === 3 ? 144 : 72) * kbps * 1000) / RATES[v][sr]) + pad };
+}
+
 /** The first MPEG frame header in the bytes (a header followed by another a frame later), or -1. */
 export function firstFrame(b: Uint8Array): number {
   for (let i = 0; i + 4 < b.length; i++) {
-    if (b[i] !== 0xff || (b[i + 1] & 0xe6) !== 0xe2) continue; // sync, MPEG-1, layer III
-    const br = b[i + 2] >> 4, sr = (b[i + 2] >> 2) & 3, pad = (b[i + 2] >> 1) & 1;
-    if (br === 0 || br === 15 || sr === 3) continue;
-    const len = Math.floor((144 * [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320][br] * 1000) / [44100, 48000, 32000][sr]) + pad;
-    const j = i + len;
-    if (j + 1 >= b.length || (b[j] === 0xff && (b[j + 1] & 0xe6) === 0xe2)) return i;
+    const f = frameAt(b, i);
+    if (!f) continue;
+    const j = i + f.len;
+    if (j + 1 >= b.length || frameAt(b, j)) return i;
   }
   return -1;
 }
 
 export class FathPlayer {
-  private id3 = new Map<string, Promise<number>>();
+  private heads = new Map<string, Promise<{ id3: number; bps: number }>>();
   private pieces = new Map<string, Promise<Piece | null>>(); // url:from:to → the decoded range
   private order: string[] = [];
   private current: { src: AudioBufferSourceNode; done: () => void } | null = null;
@@ -45,20 +59,23 @@ export class FathPlayer {
     return !!this.current;
   }
 
-  /** The size of the ID3v2 tag at the file's start (0 when none): where the audio bytes begin. */
-  private async headerOf(url: string): Promise<number> {
-    if (!this.id3.has(url)) {
-      this.id3.set(url, (async () => {
+  /** Where the audio bytes begin (after the ID3v2 tag) and the file's bytes per second, from its first frame. */
+  private async headerOf(url: string): Promise<{ id3: number; bps: number }> {
+    if (!this.heads.has(url)) {
+      this.heads.set(url, (async () => {
         const r = await fetch(url, { headers: { Range: 'bytes=0-9' } });
         const b = new Uint8Array(await r.arrayBuffer());
-        if (b.length < 10 || b[0] !== 0x49 || b[1] !== 0x44 || b[2] !== 0x33) return 0;
-        return 10 + ((b[6] << 21) | (b[7] << 14) | (b[8] << 7) | b[9]);
+        const id3 = b.length >= 10 && b[0] === 0x49 && b[1] === 0x44 && b[2] === 0x33 ? 10 + ((b[6] << 21) | (b[7] << 14) | (b[8] << 7) | b[9]) : 0;
+        const h = new Uint8Array(await (await fetch(url, { headers: { Range: `bytes=${id3}-${id3 + 8191}` } })).arrayBuffer());
+        const i = firstFrame(h);
+        if (i < 0) throw new Error('no frame');
+        return { id3, bps: frameAt(h, i)!.kbps * 125 };
       })().catch((e) => {
-        this.id3.delete(url);
+        this.heads.delete(url);
         throw e;
       }));
     }
-    return this.id3.get(url)!;
+    return this.heads.get(url)!;
   }
 
   /** Seconds `from`..`to` of the file, decoded (the ranges are whole seconds, so a span and its prefetch share one). */
@@ -69,15 +86,15 @@ export class FathPlayer {
     p = (async () => {
       const ctx = this.ctx();
       if (!ctx) return null;
-      const id3 = await this.headerOf(url);
-      const a = id3 + from * BYTES_PER_S, b = id3 + to * BYTES_PER_S - 1;
+      const { id3, bps } = await this.headerOf(url);
+      const a = id3 + from * bps, b = id3 + to * bps - 1;
       const r = await fetch(url, { headers: { Range: `bytes=${a}-${b}` } });
       if (r.status !== 206) throw new Error(`range ${r.status}`);
       const bytes = new Uint8Array(await r.arrayBuffer());
       const sync = firstFrame(bytes);
       if (sync < 0) throw new Error('no frame');
       const buffer = await ctx.decodeAudioData(bytes.slice(sync).buffer);
-      return { url, t0: (a + sync - id3) / BYTES_PER_S, buffer };
+      return { url, t0: (a + sync - id3) / bps, buffer };
     })();
     this.pieces.set(key, p);
     this.order.push(key);
