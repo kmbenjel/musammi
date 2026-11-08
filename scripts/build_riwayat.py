@@ -106,7 +106,8 @@ def compare(R, H, hid):
 def mutashabihat(ayat):
     phrase_map = defaultdict(list)
     for aya in ayat:
-        ws, orig = aya['c'].split(), aya['t'].split()
+        ws = aya['c'].split()
+        orig = [w for w in aya['t'].split() if re.search('[\u0621-\u064a]', w)]  # not «۞» (11-08 audit: one word short)
         for n in (4, 5):
             if len(ws) >= n:
                 cue = re.sub(r'[٠-٩\d\xa0]+$', '', ' '.join(orig[:n])).strip()
