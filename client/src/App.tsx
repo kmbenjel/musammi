@@ -64,7 +64,7 @@ const store = {
 // or the mushaf button, and back; the address follows, so a reload or an installed app keeps the mode.
 const PATH_MUSHAF = /^\/mushaf(\/|$)/.test(location.pathname);
 const TITLE = document.title;
-const MUSHAF_TITLE = 'المُسَمِّع · المصحف';
+const MUSHAF_TITLE = 'المُسَمِّع · وضع المصحف';
 
 // Guests the owner lets try the app on his Gemini key: their key starts «g-» (worker GUEST_KEYS). Their audio is not kept.
 const isGuest = (key: string | null) => !!key?.startsWith('g-');

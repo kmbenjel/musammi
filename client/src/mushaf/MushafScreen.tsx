@@ -63,7 +63,7 @@ export const MushafScreen: React.FC<Props> = (p) => {
   return (
     <div className="app mapp">
       <header className="mtop">
-        <span className="mbrand">المُسَمِّع · المصحف</span>
+        <span className="mbrand">المُسَمِّع · وضع المصحف</span>
         <span className={`mstatus ${p.active ? 'on' : ''}`}>
           {p.praying && <span className="prayer">في الصلاة</span>}
           {p.active ? p.status : p.position || 'ورش عن نافع'}

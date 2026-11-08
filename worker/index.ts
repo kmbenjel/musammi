@@ -186,7 +186,7 @@ async function manifest(env: Env, url: URL): Promise<Response> {
   const known = (env.ACCESS_KEY && k === env.ACCESS_KEY) || (k.startsWith('g-') && (env.GUEST_KEYS || '').split(',').map((x) => x.trim()).includes(k));
   const at = url.searchParams.get('mode') === 'mushaf' ? '/mushaf' : '/';
   m.start_url = at + (known ? '?k=' + encodeURIComponent(k) : '');
-  if (at === '/mushaf') Object.assign(m, { name: 'المُسَمِّع · المصحف', short_name: 'المصحف', id: '/mushaf', scope: '/' });
+  if (at === '/mushaf') Object.assign(m, { name: 'المُسَمِّع · وضع المصحف', short_name: 'المسمّع', id: '/mushaf', scope: '/' });
   return new Response(JSON.stringify(m), { headers: { 'Content-Type': 'application/manifest+json' } });
 }
 
