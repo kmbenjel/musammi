@@ -174,6 +174,7 @@ const STALLED_MS = 1000; // ...for this long (a burst of held audio passes throu
 // A socket that stays stalled is dead: 2026-11-02 20:11 one sat 150 s (every cut on the hard timer, no word back) until
 // Google's 1006, and the handle was refused by then. The audio queued on it is lost either way.
 const STALL_RECONNECT_MS = 15000;
+const DEAD_MIC = 0.05, DEAD_MS = 30_000; // see the unheard cuts: a dead connection is reconnected
 const UNHEARD_CUTS = 4; // stretches cut and sent with no word back since: the mic is not reaching Google
 // His speech that Google wrote nothing of (a question, 2026-11-03 «لماذا أعيد؟», «هل من خطأ؟»): this much voice since
 // the last generation means the reply answers him, not nothing. A breath or the echo of «أعد» stays well under it.
@@ -192,7 +193,8 @@ const TAPE_S = 120;
 const TAPE_BEFORE = 1600 * 3; // 300 ms before the first voiced frame of a stretch
 const JUDGED_MAX_S = 30;
 // «شغّل ما قلت» / «أسمعني ما قلت» / «ماذا سمعت؟» — not «ماذا قلت» (also «what did you say») nor «أسمعني» alone (a playback request)
-const PLAY_ME = /(^| )((شغل|اسمعني|سمعني|اعد) (ما|الذي) قلت|(ماذا|ما الذي|ما) سمعت|اسمعني صوتي)( |$)/;
+// «شغّل تلاوتي / صوتي / قراءتي» too: 15:52 333 s got play_recitation (the recorded reciter) instead of his voice
+const PLAY_ME = /(^| )((شغل|اسمعني|سمعني|اعد) (ما|الذي) (قلت|قرات|تلوت)|(شغل|اسمعني|سمعني|اعد) (تلاوتي|صوتي|قراءتي|قراتي)|(ماذا|ما الذي|ما) سمعت|اسمعني صوتي)( |$)/;
 // «لماذا قلت أعد؟» / «ما الخطأ؟» / «أين الخطأ؟»: the model gets the facts of the last «أعد», not its memory (it invented
 // «تجاوزت مما خلقنا» on 2026-11-06 22:30 and a repeated phrase on 11-03)
 const WHY_REDO = /(^| )((لماذا|ليش|علاش|لم|لمذا) ?(قلت |قلتي )?(اعد|اعيد|عيد)|(ما|ماذا|ما هو|اين|وين|فين) ?(هو )?الخطا|ما(ذا)? اعيد|لم اخطئ|ما اخطات|لم اخطا)( |$)/;
@@ -335,6 +337,7 @@ export class RecitationSession {
   private heardWords = 0; // the reciter's words since the last generation
   private voiceSinceGen = 0; // ms of his voice since the last generation (what Google wrote nothing of still counts)
   private cutsUnheard = 0; // stretches sent since a word last came back
+  private lastServerAt = 0; // the last message of any kind from Gemini
   private salatGain = 1;
   private salatRms = 0; // running RMS of his voiced frames in salat
   private youHits = 0; // tracker.hits.length when the stretch began: its own hits come after
@@ -1004,6 +1007,15 @@ export class RecitationSession {
       this.ev.onEvent(`cut lvl=${this.seg.level.toFixed(3)}`);
       this.lastCutPos = this.tapePos;
       if (++this.cutsUnheard === UNHEARD_CUTS) this.ev.onEvent(`unheard: ${UNHEARD_CUTS} cuts, no word back (mic max=${this.micMax.toFixed(3)})`);
+      // a connection that answers nothing at all, with his voice clearly there: dead on Google's side (2026-11-08 00:31:
+      // five stretches, 50 s, no transcript, no generation, no close; the next session heard him at once)
+      if (this.cutsUnheard === UNHEARD_CUTS + 1 && !this.praying && this.micMax >= DEAD_MIC && this.lastServerAt && Date.now() - this.lastServerAt > DEAD_MS && this.ws && !this.reconnecting && !this.switching) {
+        const old = this.ws, quiet = Math.round((Date.now() - this.lastServerAt) / 1000);
+        this.ws = null;
+        this.ready = false;
+        detach(old);
+        void this.reconnect(`no reply in ${quiet}s with voice (mic max=${this.micMax.toFixed(3)})`);
+      }
       this.send({ realtimeInput: { activityEnd: {} } });
       this.closing = true;
       this.answered = false;
@@ -1057,7 +1069,7 @@ export class RecitationSession {
     if (this.heardWords === 0 && ((redo && !this.exam) || (!asked && this.voiceSinceGen < UNHEARD_VOICE_MS))) return 'nothing heard';
     // the same remark again, with hardly anything new heard
     const recent = Date.now() - this.lastSaid.at < REPEAT_MS;
-    if (recent && redo && this.lastSaid.word === redo && this.heardWords < 2) return 'repeat';
+    if (recent && redo && this.lastSaid.word === redo && this.heardWords < 3) return 'repeat'; // 2 words tell nothing either (00:34 213 s «كائن لا», 15:52 313 s «شر مكانا»: both false)
     if (recent && !redo && norm === this.lastSaid.text && this.heardWords < 3) return 'repeat';
     if (!redo && isInvite(norm)) {
       if (Date.now() - this.lastInviteAt < INVITE_MS) return 'invite again';
@@ -1309,6 +1321,7 @@ export class RecitationSession {
 
   // ── server messages ────────────────────────────────────────────────────
   private handle(msg: any) {
+    this.lastServerAt = Date.now();
     if (msg.sessionResumptionUpdate?.resumable && msg.sessionResumptionUpdate.newHandle) {
       this.resumeHandle = msg.sessionResumptionUpdate.newHandle;
     }
@@ -1354,10 +1367,15 @@ export class RecitationSession {
         if (!this.heardText) this.heardFrom = this.tracker.matched;
         this.skipGapMs = this.lastRecitedAt ? Date.now() - this.lastRecitedAt : 0;
         this.skipUnmatched = this.heardWords - (this.tracker.matched - this.heardFrom);
+        const m0 = this.tracker.matched;
         const moved = this.tracker.feed(t + ' ');
         this.reveal(moved);
-        this.heardWords += plain(t).split(/\s+/).filter((w) => w.length >= 2).length;
-        if (moved) {
+        const chunkWords = plain(t).split(/\s+/).filter((w) => w.length >= 2).length;
+        this.heardWords += chunkWords;
+        // one common word of four or more matched near the opened page is no place (2026-11-08 02:44: «من» inside 25:12
+        // while he read 19:49, so the app never looked for him)
+        const weak = moved && this.tracker.matched - m0 <= 1 && chunkWords >= 4;
+        if (moved && !weak) {
           this.prefetchFath();
           this.lastRecitedAt = Date.now();
           this.reciting = true;
@@ -1365,8 +1383,9 @@ export class RecitationSession {
           this.extendReference();
         } else {
           if (t.trim().split(/\s+/).length >= 2) this.reciting = false;
-          // in salat, or before his place is confirmed (he reads far from where the range was opened)
-          if (this.praying || (!this.exam && this.tracker.ayat.length && this.tracker.matched < 6)) this.findPlace(t);
+          // in salat, or before his place is confirmed (he reads far from where the range was opened), or with no
+          // place at all (02:43: no resume, three right stretches of 19:49–50, nothing placed)
+          if (this.praying || (!this.exam && (!this.tracker.ayat.length || this.tracker.matched < 6))) this.findPlace(t);
         }
         if (this.exam) this.examElsewhere(t); // common words may move the tracker a little: judge the stretch
         if (this.tracker.skipped) this.reportSkip(this.tracker.skipped);
@@ -1659,7 +1678,7 @@ export class RecitationSession {
 
   /** He turned the mushaf to a page: he will recite from there. The tracker opens it (the place is not confirmed, so
    *  it is found anywhere in the next pages) and the teacher gets its text. */
-  openAt(ayahId: number, page: number) {
+  openAt(ayahId: number, page: number, how: 'turned' | 'remembered' = 'turned') {
     const m = this.deps.mushaf;
     const at = m.quran.find((x) => x.id === ayahId);
     if (!at || this.exam || this.mushafAudio) return;
@@ -1676,8 +1695,12 @@ export class RecitationSession {
     const sent = rangeFrom(m.quran, at.s, at.a, 3);
     this.refUntil = sent.length - 1;
     const note =
-      `(ملاحظة آلية من التطبيق: فتح القارئ المصحف على الصفحة ${page}، وأولها سورة ${name}، الآية ${at.a}. إن قرأ فمنها أو مما بعدها غالباً، ` +
-      `وانتقاله إليها مقصود. هذا نصّها المرجعي فاحكم به، ولا تقل شيئاً بسبب هذه الملاحظة.)\n` +
+      (how === 'turned'
+        ? `(ملاحظة آلية من التطبيق: فتح القارئ المصحف على الصفحة ${page}، وأولها سورة ${name}، الآية ${at.a}. إن قرأ فمنها أو مما بعدها غالباً، ` +
+          `وانتقاله إليها مقصود. هذا نصّها المرجعي فاحكم به، ولا تقل شيئاً بسبب هذه الملاحظة.)\n`
+        : // the page shown at launch is only the one he left the mushaf on (2026-11-08 02:44: 361 while he read Maryam)
+          `(ملاحظة آلية من التطبيق: على الشاشة الصفحة ${page} التي ترك عندها المصحف آخر مرة، وأولها سورة ${name}، الآية ${at.a}. قد يقرأ منها أو من أيّ موضع آخر: ` +
+          `إذا قرأ من غيرها فذلك انتقال مقصود، فاستدعِ open_mushaf لموضعه بلا كلمة، ولا «أعِد». هذا نصّ الصفحة المرجعي، ولا تقل شيئاً بسبب هذه الملاحظة.)\n`) +
       formatReference(sent, m.surahs, m.diffs, riwayaOf(m.key).short);
     if (this.ready && !this.closing) this.send({ realtimeInput: { text: note } });
     else this.noteOnReopen = note;

@@ -612,7 +612,7 @@ export const App: React.FC = () => {
       session.current?.stop(); // two quick taps: only the newest session lives
       session.current = s;
       const first = mushafMode && !resume && layout ? firstAyahOn(layout, page) : undefined;
-      if (first) s.openAt(first, page);
+      if (first) s.openAt(first, page, 'remembered');
       await s.start();
     } catch (err) {
       // only this call's session: a newer start() may own session.current, or «إنهاء» already ended this one

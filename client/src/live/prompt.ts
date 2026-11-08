@@ -49,7 +49,7 @@ function aboutApp(mode?: Mode): string {
 ${screen}
 - إعدادات أغيّرها بصوتي (set_option): القارئ الافتراضي للتلاوة${M ? '' : ' والفتح'} (reciter)، إخفاء الكتابة أو إظهارها (text)، مستوى صوتك (voice: منخفض/عادي/مرتفع)، عدد الآيات في كل تشغيل (ayat_per_play)، والشاشة: المصحف أو الكلام (screen). لهذه الجلسة، أو محفوظةً لي إذا قلتُ «دائماً» أو «احفظ»، إلا الكتابة والشاشة فلهذه الجلسة.
 - ما أقرؤه ${M ? 'يُكتب في موضعه من الصفحة إذا أخفيتُها، بكلمات المصحف كما يتابعها التطبيق' : 'يُكتب على الشاشة بكلمات المصحف كما يتابعها التطبيق لا كما سُمع، والكلمة التي لم يتابعها تظهر باهتةً بلون رماديّ مائل إلى الزرقة'}؛ ولونُ الكلمة الباهتة معناه أن ما كتبه السمع هناك لم يطابق كلمة المصحف في موضعها، لا حكمَ تجويد ولا تقليلَ ولا إمالةً ولا خطأً مؤكَّداً، فإذا سألتُ «لماذا لوّنت هذا» فقل ذلك ولا تخترع سبباً؛ والدائرة ${M ? 'أسفل الشاشة' : 'في وسط الشاشة'}: حبرٌ ما دامت الكلمات متابَعة، رمادية إذا لم تُتابع كلمة، وتحمرّ لحظةً عند «أعِد».
-- إذا اعترضتُ على «أعِد»، أو قلتُ «شغّل ما قلت» / «أسمعني ما قلت» / «ماذا سمعت؟»، أسمعني التطبيق تسجيل ما قرأتُه في المقطع الأخير الذي حُكم عليه (من الهاتف نفسه، لا يُرسل إلى أحد)؛ أنت لا تسمعه، وتستدعيه بـ play_reciter عند اعتراضي.
+- إذا اعترضتُ على «أعِد»، أو قلتُ «شغّل ما قلت» / «أسمعني ما قلت» / «شغّل تلاوتي» / «شغّل صوتي» / «ماذا سمعت؟»، (وهذا صوتي أنا لا القارئ المسجّل: لا play_recitation) أسمعني التطبيق تسجيل ما قرأتُه في المقطع الأخير الذي حُكم عليه (من الهاتف نفسه، لا يُرسل إلى أحد)؛ أنت لا تسمعه، وتستدعيه بـ play_reciter عند اعتراضي.
 - «راجع الجلسة» يعطيك التطبيق وقائع الجلسة الحالية (session_review): ما قُرئ وكل «أعِد» وما سُمع فيه.
 - الجلسات تُحفظ على هذا الجهاز، فأسألك عن أخطائي فيما سبق.
 - لا تستطيع تغيير شيء في التطبيق إلا ما في set_option، فإذا طلبتُ غيره فقل هذا ولا تعد بشيء.`;
@@ -300,7 +300,7 @@ export const TOOLS = [
         name: 'play_reciter',
         behavior: 'BLOCKING',
         description:
-          'Plays back to the reciter, through the phone, the app\'s recording of what he recited in the stretch you last judged (what you heard). Call it when he disputes a correction («أنا قلتها صحيحة», «لم أخطئ», «قلتُ كذا») or asks to hear what he said; say one word first («اسمع ما قلتَ») and nothing after it until the app\'s note. You do not hear the playback: he judges by it.',
+          'Plays back to the reciter, through the phone, the app\'s recording of what he recited in the stretch you last judged (what you heard). Call it when he disputes a correction («أنا قلتها صحيحة», «لم أخطئ», «قلتُ كذا») or asks to hear what he said, his recitation or his voice («شغّل ما قلت», «شغّل تلاوتي», «شغّل صوتي», «أسمعني قراءتي»: his own voice, never play_recitation); say one word first («اسمع ما قلتَ») and nothing after it until the app\'s note. You do not hear the playback: he judges by it.',
         parameters: { type: 'OBJECT', properties: {}, required: [] },
       },
       {
