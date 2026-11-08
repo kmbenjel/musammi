@@ -138,37 +138,43 @@
 /* the ayah's end: the font's own frame, ۝ (it fills it only with Eastern digits), and the plain digits where the font
    sets its own: centred across the frame (0.779em wide), their middle 0.223em above the baseline. .d is an empty box
    on the baseline at the frame's left edge, so the offsets hold whatever the line's height. */
+/* The ayah's end: the font's own ornament, 30% larger (user 2026-11-08: «الزخرفات أكبر… والرقم داخلها أكبر ومتوسطاً،
+   ليس ملتصقاً بالأعلى»). The digits sit in a box laid exactly over the ring's hole, measured on a 1000 px render of
+   KFGQPC Warsh uni06DD: centre 0.380em from the glyph's origin and 0.313em above the baseline, 0.58em across (the
+   centre of the whole glyph, finial and beads included, is 0.27em: digits put there look low). Flexbox centres them
+   and text-box-trim makes their box their own ink (cap height to baseline), so no font's line metrics move them. */
 .num {
   color: var(--ink);
+  position: relative;
+  display: inline-block;
+  font-size: 1.3em;
+  line-height: 1;
 }
 
 .num .d {
-  display: inline-block;
-  position: relative;
-  width: 0;
-  height: 0;
+  position: absolute;
+  left: 0.09em;
+  bottom: 0.023em;
+  width: 0.58em;
+  height: 0.58em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* the digits as tall as the font's (0.27em: 0.36em of type), three of them smaller to stay inside the circle; the
-   offsets are 0.39em and 0.223em of the page's type, written in the digits' own em */
 .num .n {
-  position: absolute;
-  left: calc(0.39em / 0.36);
-  bottom: calc(0.223em / 0.36);
-  transform: translate(-50%, 50%);
   font-family: var(--ui);
-  font-size: 0.36em;
-  font-weight: 500;
+  font-size: 0.34em;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  text-box: trim-both cap alphabetic;
   white-space: nowrap;
 }
 
 .num .n3 {
-  left: calc(0.39em / 0.3);
-  bottom: calc(0.223em / 0.3);
-  font-size: 0.3em;
-  letter-spacing: -0.02em;
+  font-size: 0.27em;
+  letter-spacing: -0.03em;
 }
 
 /* hidden: only the words recited right are written; the rest keep their place */
