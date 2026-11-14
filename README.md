@@ -317,6 +317,11 @@ fix. Known gaps and next steps:
 - [ ] Ayah timings for riwayat that have none (Qunbul), by forced alignment ([`scripts/align_timings.py`](scripts/align_timings.py), on hold)
 - [ ] The qiraʾat library for everyone, not only on the owner's laptop
 - [ ] No key at all for ordinary people: a hosted tier, outside Google's free-tier data use
+- [ ] Test Gemini Decision 1 ([Decisions API](https://ai.google.dev/gemini-api/docs), v1beta, Gen AI SDK ≥ 3.2) as a
+  cheap second opinion beside Gemini Live, on saved session audio first: a yes/no «was this a correct Warsh reading?»
+  before a «أعِد» (the false-«أعِد» gap above), and a choice «which ayah is he on?» for the position tracker. It
+  answers with a confidence and bills input only ($0.10 per 1M tokens, free in AI Studio, where free-tier data
+  may be used by Google). Keep it only if it beats the event logs on real Warsh *usul*.
 
 ## Support the project
 
